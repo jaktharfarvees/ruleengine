@@ -1,0 +1,136 @@
+PASS
+ok  	github.com/arrowhr/ruleengine	0.091s
+PASS
+ok  	github.com/arrowhr/ruleengine/audit	0.256s
+PASS
+ok  	github.com/arrowhr/ruleengine/authz	0.256s
+PASS
+ok  	github.com/arrowhr/ruleengine/cmd/rulelint	0.252s
+PASS
+ok  	github.com/arrowhr/ruleengine/cmd/ruleplay	0.306s
+PASS
+ok  	github.com/arrowhr/ruleengine/contextbuilder	0.207s
+PASS
+ok  	github.com/arrowhr/ruleengine/dataset	0.276s
+PASS
+ok  	github.com/arrowhr/ruleengine/engine	0.334s
+goos: windows
+goarch: amd64
+pkg: github.com/arrowhr/ruleengine/engine/decisiontable
+cpu: Intel(R) Core(TM) i5-8365U CPU @ 1.60GHz
+BenchmarkEvaluate/rows=10/trace=false-8         	   47787	     22698 ns/op	    2600 B/op	      96 allocs/op
+BenchmarkEvaluate/rows=10/trace=false-8         	   50370	     22915 ns/op	    2600 B/op	      96 allocs/op
+BenchmarkEvaluate/rows=10/trace=false-8         	   58330	     21650 ns/op	    2600 B/op	      96 allocs/op
+BenchmarkEvaluate/rows=10/trace=false-8         	   39987	     30282 ns/op	    2600 B/op	      96 allocs/op
+BenchmarkEvaluate/rows=10/trace=false-8         	   37131	     32075 ns/op	    2600 B/op	      96 allocs/op
+BenchmarkEvaluate/rows=10/trace=false-8         	   38496	     29423 ns/op	    2600 B/op	      96 allocs/op
+BenchmarkEvaluate/rows=10/trace=true-8          	   63700	     25778 ns/op	    3744 B/op	     108 allocs/op
+BenchmarkEvaluate/rows=10/trace=true-8          	   44156	     31672 ns/op	    3744 B/op	     108 allocs/op
+BenchmarkEvaluate/rows=10/trace=true-8          	   45548	     25941 ns/op	    3744 B/op	     108 allocs/op
+BenchmarkEvaluate/rows=10/trace=true-8          	   43762	     26587 ns/op	    3744 B/op	     108 allocs/op
+BenchmarkEvaluate/rows=10/trace=true-8          	   27949	     40029 ns/op	    3744 B/op	     108 allocs/op
+BenchmarkEvaluate/rows=10/trace=true-8          	   34650	     30784 ns/op	    3744 B/op	     108 allocs/op
+BenchmarkEvaluate/rows=100/trace=false-8        	    4710	    222941 ns/op	   22136 B/op	     906 allocs/op
+BenchmarkEvaluate/rows=100/trace=false-8        	    9133	    225421 ns/op	   22136 B/op	     906 allocs/op
+BenchmarkEvaluate/rows=100/trace=false-8        	    8811	    214564 ns/op	   22136 B/op	     906 allocs/op
+BenchmarkEvaluate/rows=100/trace=false-8        	    5926	    205087 ns/op	   22136 B/op	     906 allocs/op
+BenchmarkEvaluate/rows=100/trace=false-8        	    4845	    262257 ns/op	   22136 B/op	     906 allocs/op
+BenchmarkEvaluate/rows=100/trace=false-8        	    5692	    220283 ns/op	   22136 B/op	     906 allocs/op
+BenchmarkEvaluate/rows=100/trace=true-8         	    6320	    255517 ns/op	   33424 B/op	    1008 allocs/op
+BenchmarkEvaluate/rows=100/trace=true-8         	    4274	    316143 ns/op	   33424 B/op	    1008 allocs/op
+BenchmarkEvaluate/rows=100/trace=true-8         	    5094	    244473 ns/op	   33424 B/op	    1008 allocs/op
+BenchmarkEvaluate/rows=100/trace=true-8         	    3909	    303848 ns/op	   33424 B/op	    1008 allocs/op
+BenchmarkEvaluate/rows=100/trace=true-8         	    4418	    267378 ns/op	   33424 B/op	    1008 allocs/op
+BenchmarkEvaluate/rows=100/trace=true-8         	    4006	    288896 ns/op	   33424 B/op	    1008 allocs/op
+PASS
+ok  	github.com/arrowhr/ruleengine/engine/decisiontable	31.402s
+PASS
+ok  	github.com/arrowhr/ruleengine/engine/testengine	0.417s
+PASS
+ok  	github.com/arrowhr/ruleengine/examples/leaveservice	0.381s
+PASS
+ok  	github.com/arrowhr/ruleengine/fact	0.400s
+goos: windows
+goarch: amd64
+pkg: github.com/arrowhr/ruleengine/hierarchy
+cpu: Intel(R) Core(TM) i5-8365U CPU @ 1.60GHz
+BenchmarkPath-8                  	12052080	       134.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPath-8                  	10211240	       118.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPath-8                  	11250148	       110.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPath-8                  	15936296	       125.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPath-8                  	 8638120	       127.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPath-8                  	 8406492	       138.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/quiet-8         	1000000000	         1.185 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/quiet-8         	787023555	         1.372 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/quiet-8         	722421121	         1.984 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/quiet-8         	1000000000	         1.485 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/quiet-8         	1000000000	         1.549 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/quiet-8         	1000000000	         1.324 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/swapping-8      	223054172	         5.026 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/swapping-8      	230799589	         6.418 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/swapping-8      	244441700	         6.161 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/swapping-8      	257492660	         6.048 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/swapping-8      	218971548	         6.021 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/swapping-8      	201864045	         6.644 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/arrowhr/ruleengine/hierarchy	34.032s
+PASS
+ok  	github.com/arrowhr/ruleengine/internal/clock	0.364s
+PASS
+ok  	github.com/arrowhr/ruleengine/internal/decimalx	0.475s
+PASS
+ok  	github.com/arrowhr/ruleengine/internal/expr	0.334s
+PASS
+ok  	github.com/arrowhr/ruleengine/internal/urnkey	0.355s
+PASS
+ok  	github.com/arrowhr/ruleengine/manifest	0.247s
+PASS
+ok  	github.com/arrowhr/ruleengine/registry	0.267s
+goos: windows
+goarch: amd64
+pkg: github.com/arrowhr/ruleengine/resolve
+cpu: Intel(R) Core(TM) i5-8365U CPU @ 1.60GHz
+BenchmarkResolve/candidates=1-8         	 1000000	      1317 ns/op	     160 B/op	       1 allocs/op
+BenchmarkResolve/candidates=1-8         	 1252928	      1394 ns/op	     160 B/op	       1 allocs/op
+BenchmarkResolve/candidates=1-8         	  941914	      1321 ns/op	     160 B/op	       1 allocs/op
+BenchmarkResolve/candidates=1-8         	  760620	      1359 ns/op	     160 B/op	       1 allocs/op
+BenchmarkResolve/candidates=1-8         	  868922	      1463 ns/op	     160 B/op	       1 allocs/op
+BenchmarkResolve/candidates=1-8         	  803508	      1306 ns/op	     160 B/op	       1 allocs/op
+BenchmarkResolve/candidates=10-8        	   92220	     17118 ns/op	    2352 B/op	      10 allocs/op
+BenchmarkResolve/candidates=10-8        	   77696	     13803 ns/op	    2352 B/op	      10 allocs/op
+BenchmarkResolve/candidates=10-8        	   78145	     14433 ns/op	    2352 B/op	      10 allocs/op
+BenchmarkResolve/candidates=10-8        	  133509	     14851 ns/op	    2352 B/op	      10 allocs/op
+BenchmarkResolve/candidates=10-8        	   63236	     17150 ns/op	    2352 B/op	      10 allocs/op
+BenchmarkResolve/candidates=10-8        	   69505	     15587 ns/op	    2352 B/op	      10 allocs/op
+BenchmarkResolve/candidates=100-8       	    6404	    220160 ns/op	   24739 B/op	     101 allocs/op
+BenchmarkResolve/candidates=100-8       	    6654	    173913 ns/op	   24739 B/op	     101 allocs/op
+BenchmarkResolve/candidates=100-8       	   10000	    190641 ns/op	   24739 B/op	     101 allocs/op
+BenchmarkResolve/candidates=100-8       	    7731	    165504 ns/op	   24739 B/op	     101 allocs/op
+BenchmarkResolve/candidates=100-8       	    6232	    190429 ns/op	   24739 B/op	     101 allocs/op
+BenchmarkResolve/candidates=100-8       	    6836	    186573 ns/op	   24739 B/op	     101 allocs/op
+PASS
+ok  	github.com/arrowhr/ruleengine/resolve	27.852s
+PASS
+ok  	github.com/arrowhr/ruleengine/rule	0.429s
+PASS
+ok  	github.com/arrowhr/ruleengine/ruletest	0.361s
+PASS
+ok  	github.com/arrowhr/ruleengine/schema	0.325s
+goos: windows
+goarch: amd64
+pkg: github.com/arrowhr/ruleengine/store
+cpu: Intel(R) Core(TM) i5-8365U CPU @ 1.60GHz
+BenchmarkCandidates-8   	 3837238	       335.8 ns/op	       8 B/op	       1 allocs/op
+BenchmarkCandidates-8   	 3342991	       366.9 ns/op	       8 B/op	       1 allocs/op
+BenchmarkCandidates-8   	 2599310	       394.4 ns/op	       8 B/op	       1 allocs/op
+BenchmarkCandidates-8   	 4021839	       303.9 ns/op	       8 B/op	       1 allocs/op
+BenchmarkCandidates-8   	 3292173	       340.5 ns/op	       8 B/op	       1 allocs/op
+BenchmarkCandidates-8   	 3270169	       375.1 ns/op	       8 B/op	       1 allocs/op
+PASS
+ok  	github.com/arrowhr/ruleengine/store	10.631s
+PASS
+ok  	github.com/arrowhr/ruleengine/store/filestore	0.459s
+PASS
+ok  	github.com/arrowhr/ruleengine/store/servicestore	0.558s
+PASS
+ok  	github.com/arrowhr/ruleengine/telemetry	0.297s

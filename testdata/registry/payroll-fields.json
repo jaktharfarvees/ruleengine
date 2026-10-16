@@ -1,0 +1,8 @@
+{
+  "fields": [
+    {"name":"otHours","domain":"payroll","dataType":"decimal","unit":"hours","pii":false,"ownerService":"payroll-service","status":"active","role":"input","factSource":{"kind":"passed","version":"1"},"factSourceVersion":"1","effective":{}},
+    {"name":"otPayable","domain":"payroll","dataType":"boolean","pii":false,"ownerService":"payroll-service","status":"active","role":"output","effective":{}},
+    {"name":"otHoursPaid","domain":"payroll","dataType":"decimal","unit":"hours","pii":false,"ownerService":"payroll-service","status":"active","role":"output","effective":{}},
+    {"name":"rateMultiplier","domain":"payroll","dataType":"decimal","pii":false,"ownerService":"payroll-service","status":"active","role":"output","effective":{}}
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "ruleKey": "urn:arrowhr:rule:leave:validation:balance:v1",
+  "domain": "leave",
+  "ruleSet": "validation",
+  "name": "balance",
+  "description": "Group baseline: a request may not exceed the available balance",
+  "version": "1.0.0",
+  "changeType": "MAJOR",
+  "status": "active",
+  "tenant": "RWB",
+  "scope": {
+    "anchor": {"kind": "node", "nodeId": "G001"},
+    "filters": []
+  },
+  "effective": {"validFrom": "2026-01-01T00:00:00Z"},
+  "declaredInputs": ["requestedDays", "availableBalance"],
+  "declaredOutputs": ["allowed", "reasonCode"],
+  "decisionType": "leave-validation",
+  "logic": {
+    "hitPolicy": "first",
+    "rows": [
+      {
+        "id": "sufficient-balance",
+        "when": {"requestedDays": "<= $availableBalance"},
+        "then": {"allowed": true, "reasonCode": "BALANCE_SUFFICIENT"}
+      },
+      {
+        "id": "insufficient-balance",
+        "when": {},
+        "then": {"allowed": false, "reasonCode": "BALANCE_INSUFFICIENT"}
+      }
+    ]
+  },
+  "guards": [],
+  "engineRef": {"engine": "decisiontable"},
+  "metadata": {
+    "owner": "People Operations",
+    "createdBy": "rule-service",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "changeNote": "availableBalance is the dataset-sourced reference field"
+  }
+}

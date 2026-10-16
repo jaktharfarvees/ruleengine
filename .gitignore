@@ -1,0 +1,10 @@
+/coverage.out
+*-coverage
+*coverage.out
+/critical-coverage.out
+/bench-current.txt
+/.cache/
+/bin/
+/rulelint
+/ruleplay
+*.test

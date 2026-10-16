@@ -1,0 +1,52 @@
+{
+  "ruleKey": "urn:arrowhr:rule:attendance:late:consecutive-penalty:v1",
+  "domain": "attendance",
+  "ruleSet": "late",
+  "name": "consecutive-penalty",
+  "description": "Colombo 03 deducts half a day once lateness runs three consecutive days",
+  "version": "1.0.0",
+  "changeType": "MAJOR",
+  "status": "active",
+  "tenant": "RWB",
+  "scope": {
+    "anchor": {"kind": "node", "nodeId": "BR001"},
+    "filters": []
+  },
+  "effective": {"validFrom": "2026-01-01T00:00:00Z"},
+  "declaredInputs": ["countConsecutiveLate", "avgLateMinutes"],
+  "declaredOutputs": ["penalty", "halfDayNoPay"],
+  "decisionType": "attendance-penalty",
+  "logic": {
+    "hitPolicy": "priority",
+    "rows": [
+      {
+        "id": "severe-streak",
+        "priority": 30,
+        "when": {"countConsecutiveLate": ">= 3", "avgLateMinutes": ">= 60"},
+        "then": {"penalty": "0.5", "halfDayNoPay": true},
+        "note": "Three consecutive late days averaging an hour or more"
+      },
+      {
+        "id": "mild-streak",
+        "priority": 20,
+        "when": {"countConsecutiveLate": ">= 3", "avgLateMinutes": "between 15 and 59"},
+        "then": {"penalty": "0.25", "halfDayNoPay": false},
+        "note": "Tiered: the streak is reached but the lateness is moderate"
+      },
+      {
+        "id": "no-penalty",
+        "priority": 10,
+        "when": {},
+        "then": {"penalty": "0", "halfDayNoPay": false}
+      }
+    ]
+  },
+  "guards": [],
+  "engineRef": {"engine": "decisiontable"},
+  "metadata": {
+    "owner": "Attendance Operations",
+    "createdBy": "rule-service",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "changeNote": "penalty is the deducted day fraction, matching its decimal registry type"
+  }
+}

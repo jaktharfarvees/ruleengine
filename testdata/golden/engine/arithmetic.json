@@ -1,0 +1,22 @@
+{
+  "name": "exact decimal arithmetic and output field references",
+  "requires": ["arithmetic"],
+  "logic": {
+    "hitPolicy": "first",
+    "rows": [
+      {
+        "id": "calculate",
+        "when": {"hours": "> $minimum"},
+        "then": {"employee": "$employeeId", "sum": "0.1 + 0.2", "pay": "$hours * $rate"}
+      }
+    ]
+  },
+  "input": {
+    "facts": {"hours": 8, "minimum": 4, "employeeId": "E-100", "rate": 1.25, "currency": "USD"},
+    "trace": true
+  },
+  "expected": {
+    "result": {"employee": "E-100", "sum": "0.3", "pay": "10"},
+    "matchedRows": ["calculate"]
+  }
+}

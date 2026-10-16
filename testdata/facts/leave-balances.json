@@ -1,0 +1,5 @@
+{
+  "leave.balances": [
+    {"tenantId": "RWB", "employeeId": "E1001", "leaveType": "ANNUAL", "balanceDays": "12.5", "asOfDate": "2026-10-14"}
+  ]
+}

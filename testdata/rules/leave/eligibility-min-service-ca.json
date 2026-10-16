@@ -1,0 +1,42 @@
+{
+  "ruleKey": "urn:arrowhr:rule:leave:eligibility:min-service:v1",
+  "domain": "leave",
+  "ruleSet": "eligibility",
+  "name": "min-service",
+  "description": "RWB CA shortens the minimum service requirement to three months",
+  "version": "1.1.0",
+  "changeType": "MINOR",
+  "status": "active",
+  "tenant": "RWB",
+  "scope": {
+    "anchor": {"kind": "node", "nodeId": "C002"},
+    "filters": []
+  },
+  "effective": {"validFrom": "2026-01-01T00:00:00Z"},
+  "declaredInputs": ["serviceMonths"],
+  "declaredOutputs": ["eligible", "reasonCode"],
+  "decisionType": "leave-eligibility",
+  "logic": {
+    "hitPolicy": "first",
+    "rows": [
+      {
+        "id": "eligible",
+        "when": {"serviceMonths": ">= 3"},
+        "then": {"eligible": true, "reasonCode": "ELIGIBLE"}
+      },
+      {
+        "id": "insufficient-service",
+        "when": {},
+        "then": {"eligible": false, "reasonCode": "MIN_SERVICE_NOT_MET"}
+      }
+    ]
+  },
+  "guards": [],
+  "engineRef": {"engine": "decisiontable"},
+  "metadata": {
+    "owner": "People Operations",
+    "createdBy": "rule-service",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "changeNote": "Canadian entity override; anchored deeper than the group baseline"
+  }
+}

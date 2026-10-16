@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:arrowhr:schema:evaluation-request:v2",
+  "title": "Evaluation Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "tenant", "routing", "subject", "asOf"],
+  "properties": {
+    "schemaVersion": {"type": "integer", "const": 2},
+    "tenant": {
+      "type": "object", "additionalProperties": false, "required": ["id"],
+      "properties": {"id": {"type": "string", "minLength": 1}}
+    },
+    "routing": {
+      "type": "object", "additionalProperties": false,
+      "required": ["domain", "ruleSet", "name"],
+      "properties": {
+        "domain": {"type": "string", "minLength": 1},
+        "ruleSet": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "ruleKey": {"type": "string", "pattern": "^urn:arrowhr:rule:[^:]+:[^:]+:[^:]+:v[1-9][0-9]*$"},
+        "action": {"type": "string"}
+      }
+    },
+    "subject": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "identifier"],
+      "properties": {
+        "type": {"type": "string", "minLength": 1},
+        "identifier": {"$ref": "#/$defs/identifier"},
+        "alternateIdentifiers": {"type": "array", "items": {"$ref": "#/$defs/identifier"}},
+        "nodeId": {"type": "string"},
+        "attributes": {"type": "object"}
+      }
+    },
+    "resource": {"type": "object"},
+    "context": {"type": "object"},
+    "employmentCountry": {"type": "string"},
+    "jurisdiction": {"type": "string"},
+    "locale": {"type": "string"},
+    "currency": {"type": "string"},
+    "timezone": {"type": "string"},
+    "asOf": {"type": "string", "format": "date-time"},
+    "validAt": {"type": "string", "format": "date-time"},
+    "runId": {"type": "string"},
+    "ruleVersionPin": {"type": "string"},
+    "factSourcePins": {"type": "object"},
+    "idempotencyKey": {"type": "string"},
+    "correlationId": {"type": "string"},
+    "traceparent": {"type": "string"}
+  },
+  "$defs": {
+    "identifier": {
+      "type": "object", "additionalProperties": false,
+      "required": ["system", "value", "idType"],
+      "properties": {
+        "system": {"type": "string", "minLength": 1},
+        "value": {"type": "string", "minLength": 1},
+        "idType": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}
+

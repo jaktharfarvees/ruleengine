@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 2,
+  "tenant": {"id": "RWB"},
+  "routing": {
+    "domain": "leave", "ruleSet": "validation", "name": "balance",
+    "ruleKey": "urn:arrowhr:rule:leave:validation:balance:v1"
+  },
+  "subject": {
+    "type": "employee",
+    "identifier": {"system": "urn:arrowhr:ns:employee-id", "value": "E1001", "idType": "employeeId"},
+    "nodeId": "BR001"
+  },
+  "context": {"requestedDays": "3"},
+  "asOf": "2026-10-15T00:00:00Z"
+}

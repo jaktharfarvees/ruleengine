@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:arrowhr:schema:dataset-manifest:v2",
+  "title": "Dataset Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "dataset",
+    "ownerService",
+    "domain",
+    "grain",
+    "tenantScoped",
+    "status",
+    "version",
+    "publishedAt",
+    "maxWindowDays",
+    "aggregates",
+    "columns"
+  ],
+  "properties": {
+    "dataset": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ownerService": {
+      "type": "string",
+      "minLength": 1
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "grain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "tenantScoped": {
+      "type": "boolean",
+      "const": true
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "published",
+        "deprecated"
+      ]
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "publishedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "maxWindowDays": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "rowLimit": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optional per-dataset cap on rows scanned. The fact budget caps a whole request; this caps this dataset, and the lower of the two applies."
+    },
+    "aggregates": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "count",
+          "sum",
+          "max",
+          "min",
+          "avg",
+          "streak",
+          "latest",
+          "exists"
+        ]
+      }
+    },
+    "columns": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/column"
+      }
+    }
+  },
+  "$defs": {
+    "column": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "type",
+        "filterable",
+        "aggregatable",
+        "windowable",
+        "pii"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "string",
+            "integer",
+            "decimal",
+            "boolean",
+            "date",
+            "datetime",
+            "enum",
+            "money"
+          ]
+        },
+        "filterable": {
+          "type": "boolean"
+        },
+        "aggregatable": {
+          "type": "boolean"
+        },
+        "windowable": {
+          "type": "boolean"
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "pii": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

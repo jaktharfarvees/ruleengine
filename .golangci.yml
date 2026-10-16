@@ -1,0 +1,64 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - copyloopvar
+    - durationcheck
+    - errcheck
+    - errorlint
+    - exhaustive
+    - forbidigo
+    - goconst
+    - gocritic
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - nilerr
+    - noctx
+    - predeclared
+    - revive
+    - staticcheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - wastedassign
+    - whitespace
+  settings:
+    revive:
+      rules:
+        - name: exported
+    forbidigo:
+      forbid:
+        - pattern: '^fmt\.Print.*$'
+          msg: use the caller's logger; library code must not print
+        - pattern: '^time\.Now$'
+          msg: inject clock.Clock outside internal/clock
+        # Money and rate values must stay exact. internal/decimalx owns the
+        # conversions, and resolve/filter.go plus the engine convert a caller's
+        # native float through its shortest decimal representation.
+        - pattern: '^strconv\.ParseFloat$'
+          msg: parse through decimalx.Parse so money and rate values stay exact
+        - pattern: '^math/big\.'
+          msg: use internal/decimalx rather than math/big directly
+      analyze-types: true
+  exclusions:
+    rules:
+      - path: internal/clock/clock.go
+        linters: [forbidigo]
+      - path: internal/decimalx/
+        linters: [forbidigo]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+

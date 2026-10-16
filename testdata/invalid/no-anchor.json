@@ -1,0 +1,19 @@
+{
+  "ruleKey": "urn:arrowhr:rule:leave:eligibility:no-anchor:v1",
+  "domain": "leave",
+  "ruleSet": "eligibility",
+  "name": "no-anchor",
+  "version": "1.0.0",
+  "changeType": "MAJOR",
+  "status": "active",
+  "tenant": "RWB",
+  "scope": {"anchor": {"kind": "node"}},
+  "effective": {"validFrom": "2026-01-01T00:00:00Z"},
+  "declaredInputs": [],
+  "declaredOutputs": ["eligible"],
+  "decisionType": "leave-eligibility",
+  "logic": {"hitPolicy": "first", "rows": [{"id": "default", "when": {}, "then": {"eligible": false}}]},
+  "engineRef": {"engine": "decisiontable"},
+  "metadata": {"owner": "People Operations", "createdBy": "rule-service", "createdAt": "2026-01-01T00:00:00Z"}
+}
+

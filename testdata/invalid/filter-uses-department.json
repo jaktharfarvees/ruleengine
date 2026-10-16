@@ -1,0 +1,22 @@
+{
+  "ruleKey": "urn:arrowhr:rule:leave:eligibility:department-filter:v1",
+  "domain": "leave",
+  "ruleSet": "eligibility",
+  "name": "department-filter",
+  "version": "1.0.0",
+  "changeType": "MAJOR",
+  "status": "active",
+  "tenant": "RWB",
+  "scope": {
+    "anchor": {"kind": "node", "nodeId": "G001"},
+    "filters": [{"attribute": "department", "op": "equals", "value": "Engineering"}]
+  },
+  "effective": {"validFrom": "2026-01-01T00:00:00Z"},
+  "declaredInputs": [],
+  "declaredOutputs": ["eligible"],
+  "decisionType": "leave-eligibility",
+  "logic": {"hitPolicy": "first", "rows": [{"id": "default", "when": {}, "then": {"eligible": true}}]},
+  "engineRef": {"engine": "decisiontable"},
+  "metadata": {"owner": "People Operations", "createdBy": "rule-service", "createdAt": "2026-01-01T00:00:00Z"}
+}
+

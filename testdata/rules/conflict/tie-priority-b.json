@@ -1,0 +1,59 @@
+{
+  "ruleKey": "urn:arrowhr:rule:leave:conflict:overlap-priority:v1",
+  "domain": "leave",
+  "ruleSet": "conflict",
+  "name": "overlap-priority",
+  "description": "The RT07 pair with an explicit tie-break priority",
+  "version": "1.0.0",
+  "changeType": "MAJOR",
+  "status": "active",
+  "tenant": "RWB",
+  "scope": {
+    "anchor": {
+      "kind": "node",
+      "nodeId": "D003"
+    },
+    "filters": [
+      {
+        "attribute": "workerCategory",
+        "op": "equals",
+        "value": "PERMANENT"
+      }
+    ]
+  },
+  "tieBreakPriority": 20,
+  "effective": {
+    "validFrom": "2026-01-01T00:00:00Z"
+  },
+  "declaredInputs": [
+    "requestedDays"
+  ],
+  "declaredOutputs": [
+    "allowed",
+    "reasonCode"
+  ],
+  "decisionType": "leave-validation",
+  "logic": {
+    "hitPolicy": "first",
+    "rows": [
+      {
+        "id": "decide",
+        "when": {},
+        "then": {
+          "allowed": false,
+          "reasonCode": "PERMANENT_CATEGORY_REFUSES"
+        }
+      }
+    ]
+  },
+  "guards": [],
+  "engineRef": {
+    "engine": "decisiontable"
+  },
+  "metadata": {
+    "owner": "Finance HR",
+    "createdBy": "rule-service",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "changeNote": "RT12: eliminated by tie-break, not by rank"
+  }
+}

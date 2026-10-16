@@ -1,0 +1,328 @@
+{
+  "fields": [
+    {
+      "name": "employeeId",
+      "domain": "leave",
+      "dataType": "string",
+      "pii": true,
+      "ownerService": "employee-service",
+      "status": "active",
+      "role": "input",
+      "factSource": {
+        "kind": "passed",
+        "version": "1"
+      },
+      "factSourceVersion": "1",
+      "effective": {}
+    },
+    {
+      "name": "employmentCountry",
+      "domain": "leave",
+      "dataType": "enum",
+      "allowedValues": [
+        "Canada",
+        "Sri Lanka",
+        "United Kingdom"
+      ],
+      "pii": false,
+      "ownerService": "org-service",
+      "status": "active",
+      "role": "subjectAttribute",
+      "effective": {}
+    },
+    {
+      "name": "employeeGroup",
+      "domain": "leave",
+      "dataType": "enum",
+      "allowedValues": [
+        "Development team",
+        "Finance",
+        "Operations"
+      ],
+      "pii": false,
+      "ownerService": "employee-service",
+      "status": "active",
+      "role": "subjectAttribute",
+      "effective": {}
+    },
+    {
+      "name": "jobLevel",
+      "domain": "leave",
+      "dataType": "integer",
+      "pii": false,
+      "ownerService": "employee-service",
+      "status": "active",
+      "role": "subjectAttribute",
+      "effective": {}
+    },
+    {
+      "name": "workerCategory",
+      "domain": "leave",
+      "dataType": "enum",
+      "allowedValues": [
+        "PERMANENT",
+        "CONTRACT",
+        "INTERN"
+      ],
+      "pii": false,
+      "ownerService": "employee-service",
+      "status": "active",
+      "role": "subjectAttribute",
+      "effective": {}
+    },
+    {
+      "name": "requestedDays",
+      "domain": "leave",
+      "dataType": "decimal",
+      "unit": "days",
+      "pii": false,
+      "ownerService": "leave-service",
+      "status": "active",
+      "role": "input",
+      "factSource": {
+        "kind": "passed",
+        "version": "1"
+      },
+      "factSourceVersion": "1",
+      "effective": {}
+    },
+    {
+      "name": "leaveType",
+      "domain": "leave",
+      "dataType": "enum",
+      "allowedValues": [
+        "CASUAL",
+        "ANNUAL",
+        "SICK",
+        "UNPAID"
+      ],
+      "pii": false,
+      "ownerService": "leave-service",
+      "status": "active",
+      "role": "subjectAttribute",
+      "effective": {}
+    },
+    {
+      "name": "serviceMonths",
+      "domain": "leave",
+      "dataType": "integer",
+      "unit": "months",
+      "pii": false,
+      "ownerService": "employee-service",
+      "status": "active",
+      "role": "input",
+      "factSource": {
+        "kind": "derived",
+        "expression": "monthsBetween($joinDate, $validAt)",
+        "version": "1"
+      },
+      "factSourceVersion": "1",
+      "effective": {}
+    },
+    {
+      "name": "joinDate",
+      "domain": "leave",
+      "dataType": "date",
+      "pii": false,
+      "ownerService": "employee-service",
+      "status": "active",
+      "role": "input",
+      "factSource": {
+        "kind": "passed",
+        "version": "1"
+      },
+      "factSourceVersion": "1",
+      "effective": {}
+    },
+    {
+      "name": "availableBalance",
+      "domain": "leave",
+      "dataType": "decimal",
+      "unit": "days",
+      "pii": false,
+      "ownerService": "leave-service",
+      "status": "active",
+      "role": "input",
+      "factSource": {
+        "kind": "dataset",
+        "dataset": "leave.balances",
+        "filters": [
+          {
+            "attribute": "employeeId",
+            "op": "equals",
+            "value": "$subject.employeeId"
+          },
+          {
+            "attribute": "leaveType",
+            "op": "equals",
+            "value": "ANNUAL"
+          }
+        ],
+        "window": {
+          "column": "asOfDate",
+          "relativeTo": "$validAt",
+          "lastDays": 366
+        },
+        "aggregate": {
+          "fn": "latest",
+          "on": "balanceDays",
+          "unit": "days"
+        },
+        "onEmpty": "0",
+        "version": "1"
+      },
+      "factSourceVersion": "1",
+      "effective": {},
+      "description": "Annual-leave balance at validAt, the dataset-sourced reference field"
+    },
+    {
+      "name": "accruedBalanceToDate",
+      "domain": "leave",
+      "dataType": "decimal",
+      "unit": "days",
+      "pii": false,
+      "ownerService": "leave-service",
+      "status": "active",
+      "role": "input",
+      "factSource": {
+        "kind": "native",
+        "nativeRef": "leave.accruedBalanceToDate",
+        "version": "1"
+      },
+      "factSourceVersion": "1",
+      "effective": {}
+    },
+    {
+      "name": "casualLeaveTakenThisYear",
+      "domain": "leave",
+      "dataType": "decimal",
+      "unit": "days",
+      "pii": false,
+      "ownerService": "leave-service",
+      "status": "active",
+      "role": "input",
+      "factSource": {
+        "kind": "dataset",
+        "dataset": "leave.applications",
+        "filters": [
+          {
+            "attribute": "employeeId",
+            "op": "equals",
+            "value": "$subject.employeeId"
+          },
+          {
+            "attribute": "leaveType",
+            "op": "equals",
+            "value": "CASUAL"
+          },
+          {
+            "attribute": "status",
+            "op": "equals",
+            "value": "APPROVED"
+          }
+        ],
+        "window": {
+          "column": "startDate",
+          "relativeTo": "$validAt",
+          "lastDays": 365
+        },
+        "aggregate": {
+          "fn": "sum",
+          "on": "days",
+          "unit": "days"
+        },
+        "onEmpty": "0",
+        "version": "1"
+      },
+      "factSourceVersion": "1",
+      "effective": {},
+      "description": "Approved casual days taken in the 365 days up to validAt"
+    },
+    {
+      "name": "maxConsecutiveCasualDays",
+      "domain": "leave",
+      "dataType": "integer",
+      "unit": "days",
+      "pii": false,
+      "ownerService": "leave-service",
+      "status": "active",
+      "role": "input",
+      "factSource": {
+        "kind": "dataset",
+        "dataset": "leave.applications",
+        "filters": [
+          {
+            "attribute": "employeeId",
+            "op": "equals",
+            "value": "$subject.employeeId"
+          },
+          {
+            "attribute": "leaveType",
+            "op": "equals",
+            "value": "CASUAL"
+          },
+          {
+            "attribute": "status",
+            "op": "equals",
+            "value": "APPROVED"
+          }
+        ],
+        "window": {
+          "column": "startDate",
+          "relativeTo": "$validAt",
+          "lastDays": 365
+        },
+        "aggregate": {
+          "fn": "streak",
+          "on": "days",
+          "unit": "applications"
+        },
+        "onEmpty": 0,
+        "version": "1"
+      },
+      "factSourceVersion": "1",
+      "effective": {},
+      "description": "Run of consecutive approved casual applications ending at validAt; see docs/OPEN_QUESTIONS.md G6 for the calendar-day variant"
+    },
+    {
+      "name": "unresolvableExample",
+      "domain": "leave",
+      "dataType": "string",
+      "pii": false,
+      "ownerService": "leave-service",
+      "status": "active",
+      "role": "input",
+      "effective": {}
+    },
+    {
+      "name": "eligible",
+      "domain": "leave",
+      "dataType": "boolean",
+      "pii": false,
+      "ownerService": "leave-service",
+      "status": "active",
+      "role": "output",
+      "effective": {}
+    },
+    {
+      "name": "reasonCode",
+      "domain": "leave",
+      "dataType": "string",
+      "pii": false,
+      "ownerService": "leave-service",
+      "status": "active",
+      "role": "output",
+      "effective": {}
+    },
+    {
+      "name": "allowed",
+      "domain": "leave",
+      "dataType": "boolean",
+      "pii": false,
+      "ownerService": "leave-service",
+      "status": "active",
+      "role": "output",
+      "effective": {}
+    }
+  ]
+}

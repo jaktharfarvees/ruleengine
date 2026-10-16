@@ -1,0 +1,25 @@
+{
+  "name": "leave eligibility minimum service",
+  "logic": {
+    "hitPolicy": "first",
+    "rows": [
+      {
+        "id": "eligible",
+        "when": {"serviceMonths": ">= 6"},
+        "then": {"eligible": true, "reasonCode": "ELIGIBLE"}
+      },
+      {
+        "id": "insufficient-service",
+        "when": {},
+        "then": {"eligible": false, "reasonCode": "MIN_SERVICE_NOT_MET"}
+      }
+    ]
+  },
+  "declaredInputs": ["serviceMonths"],
+  "declaredOutputs": ["eligible", "reasonCode"],
+  "input": {"facts": {"serviceMonths": 6}, "trace": true},
+  "expected": {
+    "result": {"eligible": true, "reasonCode": "ELIGIBLE"},
+    "matchedRows": ["eligible"]
+  }
+}

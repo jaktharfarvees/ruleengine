@@ -1,0 +1,52 @@
+{
+  "ruleKey": "urn:arrowhr:rule:payroll:overtime:payment:v1",
+  "domain": "payroll",
+  "ruleSet": "overtime",
+  "name": "payment",
+  "description": "Group baseline for overtime payment",
+  "version": "1.0.0",
+  "changeType": "MAJOR",
+  "status": "active",
+  "tenant": "RWB",
+  "scope": {
+    "anchor": {"kind": "node", "nodeId": "G001"},
+    "filters": []
+  },
+  "effective": {"validFrom": "2026-01-01T00:00:00Z"},
+  "declaredInputs": ["otHours"],
+  "declaredOutputs": ["otPayable", "otHoursPaid", "rateMultiplier", "reasonCode"],
+  "decisionType": "payroll-overtime",
+  "logic": {
+    "hitPolicy": "first",
+    "rows": [
+      {
+        "id": "above-threshold",
+        "when": {"otHours": "> 40"},
+        "then": {
+          "otPayable": true,
+          "otHoursPaid": "$otHours - 40",
+          "rateMultiplier": "2.0",
+          "reasonCode": "OT_ABOVE_THRESHOLD"
+        },
+        "note": "The engine returns values; the payroll service does the money arithmetic"
+      },
+      {
+        "id": "within-threshold",
+        "when": {},
+        "then": {
+          "otPayable": false,
+          "otHoursPaid": "0",
+          "rateMultiplier": "1.0",
+          "reasonCode": "OT_WITHIN_THRESHOLD"
+        }
+      }
+    ]
+  },
+  "guards": [],
+  "engineRef": {"engine": "decisiontable"},
+  "metadata": {
+    "owner": "Payroll Operations",
+    "createdBy": "rule-service",
+    "createdAt": "2026-01-01T00:00:00Z"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "attendance three late days with moderate lateness takes the lower tier",
+  "requires": ["priority"],
+  "logic": {
+    "hitPolicy": "priority",
+    "rows": [
+      {"id": "severe-streak", "priority": 30, "when": {"countConsecutiveLate": ">= 3", "avgLateMinutes": ">= 60"}, "then": {"penalty": "0.5", "halfDayNoPay": true}},
+      {"id": "mild-streak", "priority": 20, "when": {"countConsecutiveLate": ">= 3", "avgLateMinutes": "between 15 and 59"}, "then": {"penalty": "0.25", "halfDayNoPay": false}},
+      {"id": "no-penalty", "priority": 10, "when": {}, "then": {"penalty": "0", "halfDayNoPay": false}}
+    ]
+  },
+  "declaredInputs": ["countConsecutiveLate", "avgLateMinutes"],
+  "declaredOutputs": ["penalty", "halfDayNoPay"],
+  "input": {"facts": {"countConsecutiveLate": 3, "avgLateMinutes": 20}, "trace": false},
+  "expected": {
+    "result": {"penalty": "0.25", "halfDayNoPay": false},
+    "matchedRows": ["mild-streak"]
+  }
+}

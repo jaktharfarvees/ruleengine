@@ -1,0 +1,25 @@
+{
+  "types": [
+    {"typeId":"group","typeName":"Group","order":0,"tenant":"RWB","status":"ACTIVE"},
+    {"typeId":"company","typeName":"Company","order":1,"tenant":"RWB","status":"ACTIVE"},
+    {"typeId":"department","typeName":"Department","order":2,"tenant":"RWB","status":"ACTIVE"},
+    {"typeId":"branch","typeName":"Branch","order":3,"tenant":"RWB","status":"ACTIVE"}
+  ],
+  "nodes": [
+    {"nodeId":"G001","tenant":"RWB","typeId":"group","name":"RWB","status":"ACTIVE","timezone":"UTC"},
+    {"nodeId":"C001","tenant":"RWB","typeId":"company","name":"RWB International","parentNodeId":"G001","status":"ACTIVE","country":"Sri Lanka","currency":"LKR","locale":"en-LK","timezone":"Asia/Colombo"},
+    {"nodeId":"C002","tenant":"RWB","typeId":"company","name":"RWB CA","parentNodeId":"G001","status":"ACTIVE","country":"Canada","currency":"CAD","locale":"en-CA","timezone":"America/Toronto"},
+    {"nodeId":"C003","tenant":"RWB","typeId":"company","name":"RWB Online Solutions","parentNodeId":"G001","status":"ACTIVE","country":"United Kingdom","currency":"GBP","locale":"en-GB","timezone":"Europe/London"},
+    {"nodeId":"C004","tenant":"RWB","typeId":"company","name":"RWB Holdings","parentNodeId":"G001","status":"ACTIVE","country":"Sri Lanka","currency":"LKR","locale":"en-LK","timezone":"Asia/Colombo"},
+    {"nodeId":"D001","tenant":"RWB","typeId":"department","name":"Accounting","parentNodeId":"C001","status":"ACTIVE","timezone":"Asia/Colombo"},
+    {"nodeId":"D002","tenant":"RWB","typeId":"department","name":"Engineering","parentNodeId":"C002","status":"ACTIVE","timezone":"America/Toronto"},
+    {"nodeId":"D002A","tenant":"RWB","typeId":"department","name":"Platform Engineering","parentNodeId":"D002","status":"ACTIVE"},
+    {"nodeId":"D003","tenant":"RWB","typeId":"department","name":"Finance","parentNodeId":"C002","status":"ACTIVE","timezone":"America/Toronto"},
+    {"nodeId":"D004","tenant":"RWB","typeId":"department","name":"Operations","parentNodeId":"C004","status":"ACTIVE","timezone":"Asia/Colombo"},
+    {"nodeId":"BR001","tenant":"RWB","typeId":"branch","name":"Colombo 03","parentNodeId":"D002A","status":"ACTIVE","timezone":"Asia/Colombo"},
+    {"nodeId":"BR002","tenant":"RWB","typeId":"branch","name":"Kandy","parentNodeId":"D002A","status":"ACTIVE","timezone":"Asia/Colombo"},
+    {"nodeId":"BR003","tenant":"RWB","typeId":"branch","name":"Galle","parentNodeId":"D003","status":"ACTIVE","timezone":"Asia/Colombo"},
+    {"nodeId":"BR004","tenant":"RWB","typeId":"branch","name":"Colombo 07","parentNodeId":"D004","status":"ACTIVE","timezone":"Asia/Colombo"}
+  ]
+}
+

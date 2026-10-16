@@ -1,0 +1,18 @@
+{
+  "name": "payroll overtime above the forty hour threshold",
+  "requires": ["arithmetic"],
+  "logic": {
+    "hitPolicy": "first",
+    "rows": [
+      {"id": "above-threshold", "when": {"otHours": "> 40"}, "then": {"otPayable": true, "otHoursPaid": "$otHours - 40", "rateMultiplier": "2.0", "reasonCode": "OT_ABOVE_THRESHOLD"}},
+      {"id": "within-threshold", "when": {}, "then": {"otPayable": false, "otHoursPaid": "0", "rateMultiplier": "1.0", "reasonCode": "OT_WITHIN_THRESHOLD"}}
+    ]
+  },
+  "declaredInputs": ["otHours"],
+  "declaredOutputs": ["otPayable", "otHoursPaid", "rateMultiplier", "reasonCode"],
+  "input": {"facts": {"otHours": 46.5}, "trace": false},
+  "expected": {
+    "result": {"otPayable": true, "otHoursPaid": "6.5", "rateMultiplier": "2.0", "reasonCode": "OT_ABOVE_THRESHOLD"},
+    "matchedRows": ["above-threshold"]
+  }
+}

@@ -1,0 +1,4 @@
+* @arrowhr/rule-engine-maintainers
+/.github/ @arrowhr/platform-security
+/internal/ @arrowhr/rule-engine-maintainers
+

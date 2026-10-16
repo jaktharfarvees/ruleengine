@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:arrowhr:schema:run-manifest:v2",
+  "title": "Run Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["runId", "tenant", "validAt", "rulePins", "factPins", "status", "openedAt"],
+  "properties": {
+    "runId": {"type": "string", "minLength": 1},
+    "tenant": {"type": "string", "minLength": 1},
+    "validAt": {"type": "string", "format": "date-time"},
+    "rulePins": {"type": "object"},
+    "factPins": {"type": "object"},
+    "status": {"type": "string", "minLength": 1},
+    "openedAt": {"type": "string", "format": "date-time"},
+    "closedAt": {"type": "string", "format": "date-time"}
+  }
+}
+

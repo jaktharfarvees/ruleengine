@@ -1,0 +1,96 @@
+{
+  "fields": [
+    {
+      "name": "countConsecutiveLate",
+      "domain": "attendance",
+      "dataType": "integer",
+      "unit": "days",
+      "pii": false,
+      "ownerService": "attendance-service",
+      "status": "active",
+      "role": "input",
+      "factSource": {
+        "kind": "dataset",
+        "dataset": "attendance.days",
+        "filters": [
+          {
+            "attribute": "employeeId",
+            "op": "equals",
+            "value": "$subject.employeeId"
+          }
+        ],
+        "window": {
+          "column": "workDate",
+          "relativeTo": "$validAt",
+          "lastDays": 30
+        },
+        "aggregate": {
+          "fn": "streak",
+          "on": "isLate",
+          "unit": "days"
+        },
+        "onEmpty": 0,
+        "version": "1"
+      },
+      "factSourceVersion": "1",
+      "effective": {},
+      "description": "Consecutive most-recent work days arrived late, ending at validAt"
+    },
+    {
+      "name": "avgLateMinutes",
+      "domain": "attendance",
+      "dataType": "decimal",
+      "unit": "minutes",
+      "pii": false,
+      "ownerService": "attendance-service",
+      "status": "active",
+      "role": "input",
+      "factSource": {
+        "kind": "dataset",
+        "dataset": "attendance.days",
+        "filters": [
+          {
+            "attribute": "employeeId",
+            "op": "equals",
+            "value": "$subject.employeeId"
+          }
+        ],
+        "window": {
+          "column": "workDate",
+          "relativeTo": "$validAt",
+          "lastDays": 30
+        },
+        "aggregate": {
+          "fn": "avg",
+          "on": "lateMinutes",
+          "unit": "minutes"
+        },
+        "onEmpty": "0",
+        "version": "1"
+      },
+      "factSourceVersion": "1",
+      "effective": {},
+      "description": "Mean lateness in minutes over the 30 days up to validAt"
+    },
+    {
+      "name": "penalty",
+      "domain": "attendance",
+      "dataType": "decimal",
+      "pii": false,
+      "ownerService": "attendance-service",
+      "status": "active",
+      "role": "output",
+      "effective": {}
+    },
+    {
+      "name": "halfDayNoPay",
+      "domain": "attendance",
+      "dataType": "boolean",
+      "pii": false,
+      "ownerService": "attendance-service",
+      "status": "active",
+      "role": "output",
+      "effective": {}
+    }
+  ]
+}

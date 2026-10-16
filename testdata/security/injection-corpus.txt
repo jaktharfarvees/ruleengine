@@ -1,0 +1,59 @@
+# Every line below must be refused when used as an authored filter value.
+# Lines beginning with # are comments, and blank lines are skipped; neither is
+# a test input.
+#
+# The guard refuses rather than sanitises. A filterable column is an
+# identifier, a code, a date, a number or a boolean, so a legitimate filter
+# value is never a query fragment and there is nothing to clean up. These
+# strings are kept in version control so that a change to the guard has to
+# face all of them again.
+#
+# Stacked statements
+'; DROP TABLE employees; --
+1; DELETE FROM leave_applications
+ANNUAL'; UPDATE payroll SET net = 0; --
+x;
+# Line and block comments
+ANNUAL -- comment
+ANNUAL--
+/* comment */ ANNUAL
+ANNUAL /*
+*/ ANNUAL
+ANNU/*hidden*/AL
+# Union-based extraction
+' UNION SELECT password FROM users --
+ANNUAL UNION ALL SELECT 1
+union select 1
+UnIoN SeLeCt 1
+# Boolean tautologies
+' OR 1=1 --
+' OR 'a'='a
+1 OR 1=1
+admin' --
+" OR ""="
+# Quoted and delimited identifiers
+`employees`
+`
+ANNUAL`;
+"ANNUAL"
+# Keyword smuggling, including unusual whitespace between tokens
+SELECT 1
+select
+delete
+insert into x
+drop database arrowhr
+exec sp_executesql
+WHERE 1=1
+from employees
+join payroll on 1=1
+ANNUAL	FROM	payroll
+# Unknown substitution tokens, and allowed tokens used as a fragment
+$subject.password
+$tenant
+$asOfYesterday
+$subject.employeeIdX
+$$
+E-$subject.employeeId
+$validAt extra
+${env}
+$subject.employeeId$asOf

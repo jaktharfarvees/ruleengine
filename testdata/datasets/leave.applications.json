@@ -1,0 +1,23 @@
+{
+  "dataset": "leave.applications",
+  "ownerService": "leave-service",
+  "domain": "leave",
+  "grain": "one row per leave application",
+  "description": "Every leave application a tenant has recorded, in any status",
+  "tenantScoped": true,
+  "status": "published",
+  "version": "1.0.0",
+  "publishedAt": "2026-01-01T00:00:00Z",
+  "maxWindowDays": 730,
+  "rowLimit": 5000,
+  "aggregates": ["count", "sum", "max", "min", "avg", "streak", "latest", "exists"],
+  "columns": [
+    {"name": "employeeId", "type": "string", "filterable": true, "aggregatable": false, "windowable": false, "pii": true, "description": "Subject key"},
+    {"name": "leaveType", "type": "enum", "filterable": true, "aggregatable": false, "windowable": false, "pii": false, "values": ["CASUAL", "ANNUAL", "SICK", "UNPAID"]},
+    {"name": "status", "type": "enum", "filterable": true, "aggregatable": false, "windowable": false, "pii": false, "values": ["APPROVED", "PENDING", "REJECTED", "CANCELLED"]},
+    {"name": "startDate", "type": "date", "filterable": true, "aggregatable": false, "windowable": true, "pii": false},
+    {"name": "endDate", "type": "date", "filterable": true, "aggregatable": false, "windowable": true, "pii": false},
+    {"name": "days", "type": "decimal", "filterable": false, "aggregatable": true, "windowable": false, "pii": false, "description": "Deliberately not filterable: no index is promised for it"},
+    {"name": "isHalfDay", "type": "boolean", "filterable": true, "aggregatable": false, "windowable": false, "pii": false}
+  ]
+}

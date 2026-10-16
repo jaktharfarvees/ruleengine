@@ -1,0 +1,13 @@
+{
+  "types": [
+    {"typeId":"group","typeName":"Group","order":0,"tenant":"Earrow","status":"ACTIVE"},
+    {"typeId":"department","typeName":"Department","order":1,"tenant":"Earrow","status":"ACTIVE"}
+  ],
+  "nodes": [
+    {"nodeId":"E-G1","code":"E-G1","tenant":"Earrow","typeId":"group","name":"Earrow","status":"ACTIVE","country":"Sri Lanka","currency":"LKR","locale":"en-LK","timezone":"Asia/Colombo"},
+    {"nodeId":"E-D1","code":"E-D1","tenant":"Earrow","typeId":"department","name":"Engineering","parentNodeId":"E-G1","status":"ACTIVE"},
+    {"nodeId":"E-D2","code":"E-D2","tenant":"Earrow","typeId":"department","name":"Support","parentNodeId":"E-G1","status":"ACTIVE"},
+    {"nodeId":"E-D3","code":"E-D3","tenant":"Earrow","typeId":"department","name":"Former Logistics","parentNodeId":"E-G1","status":"INACTIVE"}
+  ]
+}
+

@@ -1,0 +1,44 @@
+{
+  "ruleKey": "urn:arrowhr:rule:leave:validation:max-consecutive:v1",
+  "domain": "leave",
+  "ruleSet": "validation",
+  "name": "max-consecutive",
+  "description": "Engineering allows one consecutive casual day for the development team",
+  "version": "1.0.0",
+  "changeType": "MAJOR",
+  "status": "active",
+  "tenant": "RWB",
+  "scope": {
+    "anchor": {"kind": "node", "nodeId": "D002"},
+    "filters": [
+      {"attribute": "employeeGroup", "op": "in", "value": ["Development team"]}
+    ]
+  },
+  "effective": {"validFrom": "2026-01-01T00:00:00Z"},
+  "declaredInputs": ["requestedDays"],
+  "declaredOutputs": ["allowed", "reasonCode"],
+  "decisionType": "leave-validation",
+  "logic": {
+    "hitPolicy": "first",
+    "rows": [
+      {
+        "id": "within-limit",
+        "when": {"requestedDays": "<= 1"},
+        "then": {"allowed": true, "reasonCode": "WITHIN_LIMIT"}
+      },
+      {
+        "id": "exceeds-limit",
+        "when": {},
+        "then": {"allowed": false, "reasonCode": "MAX_CONSECUTIVE_EXCEEDED"}
+      }
+    ]
+  },
+  "guards": [],
+  "engineRef": {"engine": "decisiontable"},
+  "metadata": {
+    "owner": "Engineering HR",
+    "createdBy": "rule-service",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "changeNote": "Filters narrow within the department anchor; they never promote it"
+  }
+}

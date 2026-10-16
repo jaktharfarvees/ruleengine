@@ -1,0 +1,16 @@
+{
+  "name": "collect merges matches in authored order",
+  "requires": ["collect"],
+  "logic": {
+    "hitPolicy": "collect",
+    "rows": [
+      {"id": "base", "when": {"score": ">= 1"}, "then": {"band": "BASE", "base": true}},
+      {"id": "override", "when": {"score": "<= 10"}, "then": {"band": "OVERRIDE", "extra": true}}
+    ]
+  },
+  "input": {"facts": {"score": 5}, "trace": true},
+  "expected": {
+    "result": {"band": "OVERRIDE", "base": true, "extra": true},
+    "matchedRows": ["base", "override"]
+  }
+}

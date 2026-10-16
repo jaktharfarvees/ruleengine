@@ -1,0 +1,20 @@
+{
+  "ruleKey": "urn:arrowhr:rule:leave:eligibility:authored-precedence:v1",
+  "domain": "leave",
+  "ruleSet": "eligibility",
+  "name": "authored-precedence",
+  "version": "1.0.0",
+  "changeType": "MAJOR",
+  "status": "active",
+  "tenant": "RWB",
+  "precedence": 99,
+  "scope": {"anchor": {"kind": "node", "nodeId": "G001"}},
+  "effective": {"validFrom": "2026-01-01T00:00:00Z"},
+  "declaredInputs": [],
+  "declaredOutputs": ["eligible"],
+  "decisionType": "leave-eligibility",
+  "logic": {"hitPolicy": "first", "rows": [{"id": "default", "when": {}, "then": {"eligible": false}}]},
+  "engineRef": {"engine": "decisiontable"},
+  "metadata": {"owner": "People Operations", "createdBy": "rule-service", "createdAt": "2026-01-01T00:00:00Z"}
+}
+

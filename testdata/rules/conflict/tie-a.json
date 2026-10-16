@@ -1,0 +1,58 @@
+{
+  "ruleKey": "urn:arrowhr:rule:leave:conflict:overlap:v1",
+  "domain": "leave",
+  "ruleSet": "conflict",
+  "name": "overlap",
+  "description": "Same anchor as its pair, overlapping filter, no tie-break priority",
+  "version": "1.0.0",
+  "changeType": "MAJOR",
+  "status": "active",
+  "tenant": "RWB",
+  "scope": {
+    "anchor": {
+      "kind": "node",
+      "nodeId": "D003"
+    },
+    "filters": [
+      {
+        "attribute": "employeeGroup",
+        "op": "equals",
+        "value": "Finance"
+      }
+    ]
+  },
+  "effective": {
+    "validFrom": "2026-01-01T00:00:00Z"
+  },
+  "declaredInputs": [
+    "requestedDays"
+  ],
+  "declaredOutputs": [
+    "allowed",
+    "reasonCode"
+  ],
+  "decisionType": "leave-validation",
+  "logic": {
+    "hitPolicy": "first",
+    "rows": [
+      {
+        "id": "decide",
+        "when": {},
+        "then": {
+          "allowed": true,
+          "reasonCode": "FINANCE_GROUP_ALLOWS"
+        }
+      }
+    ]
+  },
+  "guards": [],
+  "engineRef": {
+    "engine": "decisiontable"
+  },
+  "metadata": {
+    "owner": "Finance HR",
+    "createdBy": "rule-service",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "changeNote": "RT07: a publish-time lint should have caught this overlap"
+  }
+}

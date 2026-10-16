@@ -1,0 +1,14 @@
+{
+  "name": "priority selects highest and breaks ties by row order",
+  "requires": ["priority"],
+  "logic": {
+    "hitPolicy": "priority",
+    "rows": [
+      {"id": "low", "priority": 1, "when": {"score": ">= 1"}, "then": {"band": "LOW"}},
+      {"id": "high-first", "priority": 10, "when": {"score": "<= 10"}, "then": {"band": "HIGH_FIRST"}},
+      {"id": "high-second", "priority": 10, "when": {"score": "between 1 and 10"}, "then": {"band": "HIGH_SECOND"}}
+    ]
+  },
+  "input": {"facts": {"score": 5}, "trace": true},
+  "expected": {"result": {"band": "HIGH_FIRST"}, "matchedRows": ["high-first"]}
+}

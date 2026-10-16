@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 2,
+  "tenant": {"id": "RWB"},
+  "routing": {
+    "domain": "leave", "ruleSet": "eligibility", "name": "min-service",
+    "ruleKey": "urn:arrowhr:rule:leave:eligibility:min-service:v1",
+    "action": "apply"
+  },
+  "subject": {
+    "type": "employee",
+    "identifier": {"system": "urn:arrowhr:ns:employee-id", "value": "E1001", "idType": "employeeId"},
+    "nodeId": "BR001"
+  },
+  "context": {"joinDate": "2026-05-01"},
+  "asOf": "2026-10-15T00:00:00Z",
+  "correlationId": "ruleplay-demo"
+}

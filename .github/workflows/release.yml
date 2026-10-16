@@ -1,0 +1,23 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Verify changelog entry
+        run: grep -F "## [${GITHUB_REF_NAME#v}]" CHANGELOG.md
+      - run: go test ./...
+      - name: Warm module proxy
+        run: GOPROXY=https://proxy.golang.org go list -m github.com/arrowhr/ruleengine@${GITHUB_REF_NAME}
+
