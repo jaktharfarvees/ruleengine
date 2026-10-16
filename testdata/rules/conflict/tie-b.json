@@ -8,19 +8,15 @@
   "changeType": "MAJOR",
   "status": "active",
   "tenant": "RWB",
-  "scope": {
-    "anchor": {
-      "kind": "node",
-      "nodeId": "D003"
-    },
-    "filters": [
+  "anchor": {"nodeId": "D003"},
+  "attributeFilters": [
       {
         "attribute": "workerCategory",
         "op": "equals",
         "value": "PERMANENT"
       }
-    ]
-  },
+  ],
+  "tieBreakPriority": 20,
   "effective": {
     "validFrom": "2026-01-01T00:00:00Z"
   },

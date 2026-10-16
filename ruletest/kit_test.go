@@ -90,10 +90,10 @@ func TestHierarchyBuilderBuildsAValidatedTree(t *testing.T) {
 
 	path, err := snapshot.Path("T1", "B1")
 	if err != nil || len(path) != 3 {
-		t.Fatalf("path = %+v, %v; want three nodes deepest first", path, err)
+		t.Fatalf("path = %+v, %v; want three nodes root first", path, err)
 	}
-	if path[0].NodeID != "B1" || path[2].NodeID != "G1" {
-		t.Fatalf("path is not deepest first: %+v", path)
+	if path[0].NodeID != "G1" || path[2].NodeID != "B1" {
+		t.Fatalf("path is not root first: %+v", path)
 	}
 	// Each attribute resolves from the nearest ancestor that declares it,
 	// independently: the branch declares a timezone, the group a country.

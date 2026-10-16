@@ -129,7 +129,8 @@ func (s *InMemoryStore) Len() int {
 
 func equal(left, right RunManifest) bool {
 	if left.RunID != right.RunID || left.Tenant != right.Tenant || !left.ValidAt.Equal(right.ValidAt) ||
-		left.Status != right.Status || !left.OpenedAt.Equal(right.OpenedAt) || !equalTime(left.ClosedAt, right.ClosedAt) {
+		left.HierarchySnapshotID != right.HierarchySnapshotID || left.Status != right.Status ||
+		!left.OpenedAt.Equal(right.OpenedAt) || !equalTime(left.ClosedAt, right.ClosedAt) {
 		return false
 	}
 	return equalMap(left.RulePins, right.RulePins) && equalMap(left.FactPins, right.FactPins)

@@ -23,7 +23,7 @@ jobs:
       - run: go vet ./...
       - run: go test ./... -covermode=atomic -coverprofile=coverage.out
       - run: go test -race ./...
-      - run: make cover docs schema
+      - run: make cover docs schema schema-compat
 
   lint:
     runs-on: ubuntu-latest

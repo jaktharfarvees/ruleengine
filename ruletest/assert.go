@@ -156,7 +156,7 @@ func explain(decision ruleengine.Decision) string {
 		for _, entry := range decision.SubjectPath {
 			nodes = append(nodes, entry.NodeID)
 		}
-		fmt.Fprintf(&report, "    path        %s (deepest first)\n", strings.Join(nodes, " -> "))
+		fmt.Fprintf(&report, "    path        %s (root to leaf)\n", strings.Join(nodes, " -> "))
 	}
 	fmt.Fprintf(&report, "    reasons     %s\n", codeList(decision.ReasonCodes))
 	if len(decision.Result) > 0 {

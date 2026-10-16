@@ -33,7 +33,7 @@ type Record struct {
 	// the anchor that won. Together they explain the precedence outcome.
 	NodeID         string `json:"nodeId,omitempty"`
 	ResolvedNodeID string `json:"resolvedNodeId,omitempty"`
-	// SubjectPath is the full node path, root last, for an auditor who needs
+	// SubjectPath is the full node path, root first, for an auditor who needs
 	// to see why a deeper anchor was or was not on it.
 	SubjectPath []string `json:"subjectPath,omitempty"`
 	// Candidates records every rule considered and why each was in or out.
@@ -44,6 +44,10 @@ type Record struct {
 	// Result is the decision's output. It is stored because a payroll figure
 	// has to be reproducible, and the audit store is access-controlled.
 	Result map[string]any `json:"result,omitempty"`
+	// InputsHash is a SHA-256 digest of the effective fact and subject-attribute
+	// values. It supports replay comparison without duplicating sensitive input
+	// values into operational logs.
+	InputsHash string `json:"inputsHash,omitempty"`
 	// ReasonCodes explains the outcome, and Failed says whether it stands.
 	ReasonCodes []string `json:"reasonCodes,omitempty"`
 	Failed      bool     `json:"failed"`
@@ -52,6 +56,8 @@ type Record struct {
 	ValidAt time.Time `json:"validAt"`
 	// RunID ties a batch decision to the run that pinned its versions.
 	RunID string `json:"runId,omitempty"`
+	// HierarchySnapshotID pins the organization structure used for precedence.
+	HierarchySnapshotID string `json:"hierarchySnapshotId,omitempty"`
 	// IdempotencyKey is what a caller used to make a money-moving decision
 	// safe to retry.
 	IdempotencyKey string `json:"idempotencyKey,omitempty"`
@@ -94,11 +100,18 @@ type Fact struct {
 
 // DecisionLogger receives one record per decision.
 //
-// Log must not block and must not fail: a decision has already been made by
-// the time it is called, and losing the record is strictly better than losing
-// the decision.
+// Log is the best-effort contract. Use DurableDecisionLogger when accepting the
+// decision depends on committing its audit evidence.
 type DecisionLogger interface {
 	Log(record Record)
+}
+
+// DurableDecisionLogger atomically accepts a record into durable storage and
+// reports failure to the evaluation caller. Production money and compliance
+// configurations can require this stronger contract.
+type DurableDecisionLogger interface {
+	DecisionLogger
+	LogDurably(ctx context.Context, record Record) error
 }
 
 // Sink persists a batch of records. It is the only part of auditing that may
@@ -107,8 +120,8 @@ type Sink interface {
 	Write(ctx context.Context, batch []Record) error
 }
 
-// Nop returns a DecisionLogger that discards every record. It is the default,
-// so a consumer that supplies none still gets decisions.
+// Nop returns a DecisionLogger that discards every record. It is the default
+// only when Config.RequireDurableAudit is false.
 func Nop() DecisionLogger { return nopLogger{} }
 
 type nopLogger struct{}

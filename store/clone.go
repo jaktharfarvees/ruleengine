@@ -12,6 +12,10 @@ func cloneRule(definition rule.RuleDefinition) rule.RuleDefinition {
 	definition.DeclaredOutputs = append([]string(nil), definition.DeclaredOutputs...)
 	definition.Guards = append([]string(nil), definition.Guards...)
 	definition.Metadata.Tags = append([]string(nil), definition.Metadata.Tags...)
+	definition.AttributeFilters = append([]rule.FilterCondition(nil), definition.AttributeFilters...)
+	for index := range definition.AttributeFilters {
+		definition.AttributeFilters[index].Value = cloneAny(definition.AttributeFilters[index].Value)
+	}
 	definition.Scope.Filters = append([]rule.FilterCondition(nil), definition.Scope.Filters...)
 	for index := range definition.Scope.Filters {
 		definition.Scope.Filters[index].Value = cloneAny(definition.Scope.Filters[index].Value)
@@ -38,9 +42,12 @@ func cloneRule(definition rule.RuleDefinition) rule.RuleDefinition {
 }
 
 func cloneManifest(manifest dataset.Manifest) dataset.Manifest {
+	manifest = manifest.Canonical()
+	manifest.AllowedAggregates = append([]dataset.AggregateFn(nil), manifest.AllowedAggregates...)
 	manifest.Aggregates = append([]dataset.AggregateFn(nil), manifest.Aggregates...)
 	manifest.Columns = append([]dataset.Column(nil), manifest.Columns...)
 	for index := range manifest.Columns {
+		manifest.Columns[index].AllowedValues = append([]string(nil), manifest.Columns[index].AllowedValues...)
 		manifest.Columns[index].Values = append([]string(nil), manifest.Columns[index].Values...)
 	}
 	return manifest

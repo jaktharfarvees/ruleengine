@@ -13,19 +13,24 @@ import (
 // Bundle is one coherent set of artifacts returned by a Loader. Cache builds
 // and validates a complete immutable Snapshot before publishing any part of it.
 type Bundle struct {
-	Rules     []rule.RuleDefinition      `json:"rules"`
-	Fields    []registry.FieldDefinition `json:"fields"`
-	Manifests []dataset.Manifest         `json:"manifests"`
-	Hierarchy HierarchyBundle            `json:"hierarchy"`
-	Cursor    string                     `json:"cursor,omitempty"`
-	LoadedAt  time.Time                  `json:"loadedAt,omitempty"`
+	Rules       []rule.RuleDefinition      `json:"rules"`
+	Catalogs    []rule.RuleCatalog         `json:"catalogs,omitempty"`
+	Fields      []registry.FieldDefinition `json:"fields"`
+	Manifests   []dataset.Manifest         `json:"manifests"`
+	Hierarchy   HierarchyBundle            `json:"hierarchy"`
+	Hierarchies []HierarchyBundle          `json:"hierarchies,omitempty"`
+	Cursor      string                     `json:"cursor,omitempty"`
+	LoadedAt    time.Time                  `json:"loadedAt,omitempty"`
 }
 
 // HierarchyBundle is the serializable source form of an immutable hierarchy
 // snapshot. Types and nodes are validated together with the rest of a Bundle.
 type HierarchyBundle struct {
-	Types []hierarchy.Type `json:"types"`
-	Nodes []hierarchy.Node `json:"nodes"`
+	SnapshotID string           `json:"snapshotId,omitempty"`
+	ValidFrom  time.Time        `json:"validFrom,omitempty"`
+	ValidTo    *time.Time       `json:"validTo,omitempty"`
+	Types      []hierarchy.Type `json:"types"`
+	Nodes      []hierarchy.Node `json:"nodes"`
 }
 
 // Loader obtains a complete coherent bundle. Implementations may read files,

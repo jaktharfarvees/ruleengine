@@ -6,13 +6,13 @@
       "dataType": "integer",
       "unit": "days",
       "pii": false,
-      "ownerService": "attendance-service",
+      "sourceService": "attendance-service",
       "status": "active",
       "role": "input",
       "factSource": {
         "kind": "dataset",
-        "dataset": "attendance.days",
-        "filters": [
+        "datasetId": "attendance.days",
+        "filter": [
           {
             "attribute": "employeeId",
             "op": "equals",
@@ -26,7 +26,7 @@
         },
         "aggregate": {
           "fn": "streak",
-          "on": "isLate",
+          "column": "isLate",
           "unit": "days"
         },
         "onEmpty": 0,
@@ -42,13 +42,13 @@
       "dataType": "decimal",
       "unit": "minutes",
       "pii": false,
-      "ownerService": "attendance-service",
+      "sourceService": "attendance-service",
       "status": "active",
       "role": "input",
       "factSource": {
         "kind": "dataset",
-        "dataset": "attendance.days",
-        "filters": [
+        "datasetId": "attendance.days",
+        "filter": [
           {
             "attribute": "employeeId",
             "op": "equals",
@@ -62,7 +62,7 @@
         },
         "aggregate": {
           "fn": "avg",
-          "on": "lateMinutes",
+          "column": "lateMinutes",
           "unit": "minutes"
         },
         "onEmpty": "0",
@@ -77,7 +77,7 @@
       "domain": "attendance",
       "dataType": "decimal",
       "pii": false,
-      "ownerService": "attendance-service",
+      "sourceService": "attendance-service",
       "status": "active",
       "role": "output",
       "effective": {}
@@ -87,7 +87,7 @@
       "domain": "attendance",
       "dataType": "boolean",
       "pii": false,
-      "ownerService": "attendance-service",
+      "sourceService": "attendance-service",
       "status": "active",
       "role": "output",
       "effective": {}

@@ -8,10 +8,7 @@
   "changeType": "MINOR",
   "status": "active",
   "tenant": "RWB",
-  "scope": {
-    "anchor": {"kind": "node", "nodeId": "C002"},
-    "filters": []
-  },
+  "anchor": {"nodeId": "C002"},
   "effective": {"validFrom": "2026-01-01T00:00:00Z"},
   "declaredInputs": ["serviceMonths"],
   "declaredOutputs": ["eligible", "reasonCode"],
@@ -22,7 +19,7 @@
       {
         "id": "eligible",
         "when": {"serviceMonths": ">= 3"},
-        "then": {"eligible": true, "reasonCode": "ELIGIBLE"}
+        "then": {"eligible": true, "reasonCode": "OK"}
       },
       {
         "id": "insufficient-service",

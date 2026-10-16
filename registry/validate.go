@@ -161,7 +161,7 @@ func (d DataType) Accepts(value any, allowed []string) bool {
 		return ok
 	case DataInteger:
 		return isInteger(value)
-	case DataDecimal, DataMoney:
+	case DataDecimal, DataNumber, DataMoney:
 		_, ok := decimalx.FromValue(value)
 		return ok
 	case DataBoolean:

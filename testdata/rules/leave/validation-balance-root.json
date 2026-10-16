@@ -8,10 +8,7 @@
   "changeType": "MAJOR",
   "status": "active",
   "tenant": "RWB",
-  "scope": {
-    "anchor": {"kind": "node", "nodeId": "G001"},
-    "filters": []
-  },
+  "anchor": {"nodeId": "G001"},
   "effective": {"validFrom": "2026-01-01T00:00:00Z"},
   "declaredInputs": ["requestedDays", "availableBalance"],
   "declaredOutputs": ["allowed", "reasonCode"],

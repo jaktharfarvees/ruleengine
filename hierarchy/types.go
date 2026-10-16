@@ -25,7 +25,7 @@ type Node struct {
 	Timezone     string `json:"timezone,omitempty"`
 }
 
-// PathEntry is one node on a deepest-first subject path.
+// PathEntry is one node on a root-to-leaf subject path.
 type PathEntry struct {
 	NodeID   string `json:"nodeId"`
 	Name     string `json:"name"`

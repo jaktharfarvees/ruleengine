@@ -7,7 +7,7 @@
   "changeType": "MAJOR",
   "status": "active",
   "tenant": "RWB",
-  "scope": {"anchor": {"kind": "node"}},
+  "anchor": {},
   "effective": {"validFrom": "2026-01-01T00:00:00Z"},
   "declaredInputs": [],
   "declaredOutputs": ["eligible"],

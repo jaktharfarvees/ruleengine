@@ -16,7 +16,7 @@ import (
 )
 
 func TestEmbeddedSchemas(t *testing.T) {
-	want := []string{DatasetManifest, EvaluationRequest, EvaluationResponse, FieldRegistry, OrgHierarchy, RuleDefinition, RunManifest}
+	want := []string{DatasetManifest, EvaluationRequest, EvaluationResponse, FieldRegistry, OrgHierarchy, RuleCatalog, RuleDefinition, RunManifest}
 	got := Names()
 	if len(got) != len(want) {
 		t.Fatalf("Names() = %v, want %v", got, want)
@@ -33,6 +33,61 @@ func TestEmbeddedSchemas(t *testing.T) {
 	if _, err := Bytes("missing.json"); err == nil {
 		t.Fatal("unknown schema was accepted")
 	}
+}
+
+// TestV2CompatibilityBaseline is the additive-only gate for the published v2
+// boundary. Removing one of these required fields or changing its schema URN
+// is a breaking change and must be introduced under a new major schema folder.
+func TestV2CompatibilityBaseline(t *testing.T) {
+	baseline := map[string]struct {
+		id       string
+		required []string
+	}{
+		EvaluationRequest:  {"urn:arrowhr:schema:evaluation-request:v2", []string{"schemaVersion", "tenant", "routing", "subject", "context", "asOf"}},
+		EvaluationResponse: {"urn:arrowhr:schema:evaluation-response:v2", []string{"decisionId", "reasonCodes", "failed", "asOf", "validAt", "libVersion"}},
+		RuleDefinition:     {"urn:arrowhr:schema:rule-definition:v2", []string{"ruleKey", "domain", "ruleSet", "name", "version", "changeType", "status", "tenant", "anchor", "effective", "declaredInputs", "declaredOutputs", "decisionType", "logic", "engineRef", "metadata"}},
+		FieldRegistry:      {"urn:arrowhr:schema:field-registry:v2", nil},
+		RuleCatalog:        {"urn:arrowhr:schema:rule-catalog:v2", []string{"catalogManifestId", "tenant", "entries"}},
+		DatasetManifest:    {"urn:arrowhr:schema:dataset-manifest:v2", []string{"datasetId", "sourceService", "domain", "status", "maxWindowDays", "allowedAggregates", "columns"}},
+	}
+	for name, contract := range baseline {
+		data, err := Bytes(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var document struct {
+			ID       string   `json:"$id"`
+			Required []string `json:"required"`
+		}
+		if err := json.Unmarshal(data, &document); err != nil {
+			t.Fatal(err)
+		}
+		if document.ID != contract.id {
+			t.Errorf("%s $id = %q, want %q", name, document.ID, contract.id)
+		}
+		for _, field := range contract.required {
+			if !contains(document.Required, field) {
+				t.Errorf("%s removed required v2 field %q", name, field)
+			}
+		}
+	}
+	ruleData, _ := Bytes(RuleDefinition)
+	if bytes.Contains(ruleData, []byte(`"scope"`)) || bytes.Contains(ruleData, []byte(`"precedence"`)) {
+		t.Fatal("v2 rule schema reintroduced retired fixed-level precedence fields")
+	}
+	registryData, _ := Bytes(FieldRegistry)
+	if !bytes.Contains(registryData, []byte(`"required": ["fields"]`)) {
+		t.Fatal("field registry removed the required fields envelope")
+	}
+}
+
+func contains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 // TestRuleFixtureRoundTripAndValidation covers every committed rule fixture.
@@ -118,12 +173,13 @@ func TestInvalidRuleFixtures(t *testing.T) {
 
 func TestSchemaExamples(t *testing.T) {
 	tests := []struct{ name, document string }{
-		{EvaluationRequest, `{"schemaVersion":2,"tenant":{"id":"RWB"},"routing":{"domain":"leave","ruleSet":"eligibility","name":"min-service"},"subject":{"type":"employee","identifier":{"system":"hr","value":"E1","idType":"employeeId"},"nodeId":"BR001"},"asOf":"2026-10-14T08:00:00Z"}`},
+		{EvaluationRequest, `{"schemaVersion":2,"tenant":{"id":"RWB"},"routing":{"domain":"leave","ruleSet":"eligibility","name":"min-service","ruleKey":"urn:arrowhr:rule:leave:eligibility:min-service:v1"},"subject":{"type":"employee","identifier":{"system":"hr","value":"E1","idType":"employeeId"},"nodeId":"BR001"},"context":{},"asOf":"2026-10-14T08:00:00Z"}`},
 		{EvaluationResponse, `{"decisionId":"d1","reasonCodes":["OK"],"failed":false,"asOf":"2026-10-14T08:00:00Z","validAt":"2026-10-14T08:00:00Z","libVersion":"0.0.0-dev"}`},
-		{FieldRegistry, `{"fields":[{"name":"eligible","domain":"leave","dataType":"boolean","pii":false,"ownerService":"leave","status":"active","role":"output","effective":{}}]}`},
-		{DatasetManifest, `{"dataset":"leave.applications","ownerService":"leave","domain":"leave","grain":"application","tenantScoped":true,"status":"published","version":"1","publishedAt":"2026-01-01T00:00:00Z","maxWindowDays":366,"aggregates":["sum"],"columns":[{"name":"tenantId","type":"string","filterable":true,"aggregatable":false,"windowable":false,"pii":false}]}`},
+		{FieldRegistry, `{"fields":[{"name":"eligible","domain":"leave","dataType":"boolean","pii":false,"sourceService":"leave","status":"active","role":"output","effective":{}}]}`},
+		{DatasetManifest, `{"datasetId":"leave.applications","sourceService":"leave","domain":"leave","status":"published","maxWindowDays":366,"allowedAggregates":["sum"],"columns":[{"name":"employeeId","dataType":"string","filterable":true,"aggregatable":false,"windowable":false,"pii":false}]}`},
+		{RuleCatalog, `{"catalogManifestId":"RWB-2026-01","tenant":"RWB","entries":[{"ruleKey":"urn:arrowhr:rule:leave:eligibility:min-service:v1","domain":"leave","ruleSet":"eligibility","anchorNodeId":"G001","effective":{"validFrom":"2026-01-01T00:00:00Z"},"decisionType":"leave-eligibility","loaderKey":"rules/leave/min-service.json"}]}`},
 		{OrgHierarchy, `{"types":[{"typeId":"group","typeName":"Group","order":0,"tenant":"RWB","status":"ACTIVE"}],"nodes":[{"nodeId":"G001","tenant":"RWB","typeId":"group","name":"Root","status":"ACTIVE"}]}`},
-		{RunManifest, `{"runId":"run-1","tenant":"RWB","validAt":"2026-10-14T08:00:00Z","rulePins":{},"factPins":{},"status":"open","openedAt":"2026-10-14T08:00:00Z"}`},
+		{RunManifest, `{"runId":"run-1","tenant":"RWB","validAt":"2026-10-14T08:00:00Z","rulePins":{},"factPins":{},"hierarchySnapshotId":"default","status":"open","openedAt":"2026-10-14T08:00:00Z"}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

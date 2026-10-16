@@ -13,7 +13,7 @@ type EvalRequest struct {
 	Routing           Routing           `json:"routing"`
 	Subject           Subject           `json:"subject"`
 	Resource          map[string]any    `json:"resource,omitempty"`
-	Context           map[string]any    `json:"context,omitempty"`
+	Context           map[string]any    `json:"context"`
 	EmploymentCountry string            `json:"employmentCountry,omitempty"`
 	Jurisdiction      string            `json:"jurisdiction,omitempty"`
 	Locale            string            `json:"locale,omitempty"`

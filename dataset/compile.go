@@ -104,6 +104,8 @@ const (
 //	G11 a relative window is resolved to absolute times
 //	G12 a personal column used as a filter is noted unless it is the subject key
 func Compile(source registry.FactSource, manifest Manifest, params Params) (Query, []string, error) {
+	source = source.Canonical()
+	manifest = manifest.Canonical()
 	if source.Kind != registry.FactDataset {
 		return Query{}, nil, &Fault{Code: ReasonUnresolvable,
 			Err: fmt.Errorf("fact source kind %q is not a dataset source", source.Kind)}

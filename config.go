@@ -57,15 +57,10 @@ type Config struct {
 	FactBudget fact.Budget
 	// Validation controls boundary strictness. The zero value is strict.
 	Validation ValidationMode
-	// FailClosedDomains lists the domains where no rule resolving must fail
-	// the decision rather than fall back to a default.
-	//
-	// It currently has no effect: every domain fails closed, because nothing
-	// in the rule model lets a rule set declare the low-risk default a
-	// non-listed domain would fall back to. Set it anyway for the money and
-	// compliance domains, so that the configuration states the intent and the
-	// behaviour cannot change under them when defaults arrive. See
-	// docs/OPEN_QUESTIONS.md G9.
+	// FailClosedDomains is retained for source compatibility. V2 default
+	// eligibility is controlled solely by exact, tenant-authorized
+	// RuleCatalog.defaults entries; no global domain allow/deny list is used.
+	// Deprecated: publish or omit a tenant catalog default instead.
 	FailClosedDomains []string
 	// CacheReloadInterval is how often the engine reconciles its cache in the
 	// background. Zero means no background goroutine at all: the service
@@ -80,6 +75,10 @@ type Config struct {
 	// useful for support and for Rule Studio, and costs allocation per
 	// decision, so it is off by default.
 	TraceEnabled bool
+	// RequireDurableAudit refuses construction unless the configured decision
+	// logger implements audit.DurableDecisionLogger. Enable it for money,
+	// compliance, and any workflow whose decision record may not be lost.
+	RequireDurableAudit bool
 }
 
 // defaultMaxCandidatesPerKey is generous enough that no sane rule set reaches

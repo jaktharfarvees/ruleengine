@@ -1,6 +1,10 @@
 package registry
 
-import "github.com/arrowhr/ruleengine/rule"
+import (
+	"encoding/json"
+
+	"github.com/arrowhr/ruleengine/rule"
+)
 
 // The declaration of where a field's value comes from lives here, with the
 // field contract it belongs to, because plan section 4.4 makes `factSource` a
@@ -84,15 +88,94 @@ func (f AggregateFn) NeedsColumn() bool {
 // Dataset with Filters, Window and Aggregate for dataset.
 type FactSource struct {
 	Kind       FactKind               `json:"kind"`
-	Dataset    string                 `json:"dataset,omitempty"`
-	Filters    []rule.FilterCondition `json:"filters,omitempty"`
+	DatasetID  string                 `json:"datasetId,omitempty"`
+	Filter     []rule.FilterCondition `json:"filter,omitempty"`
 	Window     *FactWindow            `json:"window,omitempty"`
 	Aggregate  *FactAggregate         `json:"aggregate,omitempty"`
 	Expression string                 `json:"expression,omitempty"`
-	NativeRef  string                 `json:"nativeRef,omitempty"`
+	BuilderFn  string                 `json:"builderFn,omitempty"`
 	OnEmpty    any                    `json:"onEmpty,omitempty"`
 	Notes      string                 `json:"notes,omitempty"`
 	Version    string                 `json:"version,omitempty"`
+	// Deprecated v1 Go aliases, excluded from the v2 wire contract.
+	Dataset   string                 `json:"-"`
+	Filters   []rule.FilterCondition `json:"-"`
+	NativeRef string                 `json:"-"`
+}
+
+// UnmarshalJSON decodes the v2 recipe names and synchronizes deprecated Go
+// aliases used by pre-v2 callers.
+func (s *FactSource) UnmarshalJSON(data []byte) error {
+	type wire FactSource
+	var decoded wire
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*s = FactSource(decoded).Canonical()
+	return nil
+}
+
+// MarshalJSON emits only the v2 recipe vocabulary.
+func (s FactSource) MarshalJSON() ([]byte, error) {
+	s = s.Canonical()
+	type wire FactSource
+	return json.Marshal(wire(s))
+}
+
+// UnmarshalJSON decodes aggregate.column and synchronizes the deprecated On
+// alias.
+func (a *FactAggregate) UnmarshalJSON(data []byte) error {
+	type wire FactAggregate
+	var decoded wire
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*a = FactAggregate(decoded)
+	a.On = a.Column
+	return nil
+}
+
+// MarshalJSON emits aggregate.column for both v2 and legacy Go values.
+func (a FactAggregate) MarshalJSON() ([]byte, error) {
+	if a.Column == "" {
+		a.Column = a.On
+	}
+	type wire FactAggregate
+	return json.Marshal(wire(a))
+}
+
+// Canonical returns a copy with the v2 names and deprecated Go aliases
+// synchronized for source-compatible construction.
+func (s FactSource) Canonical() FactSource {
+	if s.DatasetID == "" {
+		s.DatasetID = s.Dataset
+	}
+	if s.Dataset == "" {
+		s.Dataset = s.DatasetID
+	}
+	if s.Filter == nil {
+		s.Filter = append([]rule.FilterCondition(nil), s.Filters...)
+	}
+	if s.Filters == nil {
+		s.Filters = append([]rule.FilterCondition(nil), s.Filter...)
+	}
+	if s.BuilderFn == "" {
+		s.BuilderFn = s.NativeRef
+	}
+	if s.NativeRef == "" {
+		s.NativeRef = s.BuilderFn
+	}
+	if s.Aggregate != nil {
+		aggregate := *s.Aggregate
+		if aggregate.Column == "" {
+			aggregate.Column = aggregate.On
+		}
+		if aggregate.On == "" {
+			aggregate.On = aggregate.Column
+		}
+		s.Aggregate = &aggregate
+	}
+	return s
 }
 
 // FactWindow describes a bounded fact-source time window. Either LastDays
@@ -107,7 +190,9 @@ type FactWindow struct {
 
 // FactAggregate describes the operation applied to a dataset fact source.
 type FactAggregate struct {
-	Fn   AggregateFn `json:"fn"`
-	On   string      `json:"on,omitempty"`
-	Unit string      `json:"unit,omitempty"`
+	Fn     AggregateFn `json:"fn"`
+	Column string      `json:"column,omitempty"`
+	Unit   string      `json:"unit,omitempty"`
+	// On is the deprecated v1 Go alias.
+	On string `json:"-"`
 }

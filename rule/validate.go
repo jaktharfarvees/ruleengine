@@ -40,12 +40,12 @@ func (r RuleDefinition) Validate() error {
 	if r.Effective.ValidFrom.IsZero() || (r.Effective.ValidTo != nil && !r.Effective.ValidTo.After(r.Effective.ValidFrom)) {
 		return invalid("effective", fmt.Errorf("validFrom is required and validTo must be later"))
 	}
-	if err := validateAnchor(r.Scope.Anchor); err != nil {
+	if err := validateAnchor(r.EffectiveAnchor()); err != nil {
 		return err
 	}
-	for i, filter := range r.Scope.Filters {
+	for i, filter := range r.EffectiveAttributeFilters() {
 		if err := validateFilter(filter); err != nil {
-			return invalid(fmt.Sprintf("scope.filters[%d]", i), err)
+			return invalid(fmt.Sprintf("attributeFilters[%d]", i), err)
 		}
 	}
 	if !r.Logic.HitPolicy.valid() || len(r.Logic.Rows) == 0 {
@@ -80,14 +80,14 @@ func validateAnchor(anchor Anchor) error {
 	switch anchor.Kind {
 	case AnchorNode:
 		if anchor.NodeID == "" || anchor.EmployeeID != "" {
-			return invalid("scope.anchor", fmt.Errorf("node anchor requires only nodeId"))
+			return invalid("anchor", fmt.Errorf("node anchor requires only nodeId"))
 		}
 	case AnchorEmployee:
 		if anchor.EmployeeID == "" || anchor.NodeID != "" || anchor.Reason == "" {
-			return invalid("scope.anchor", fmt.Errorf("employee anchor requires employeeId and reason"))
+			return invalid("anchor", fmt.Errorf("employee anchor requires employeeId and reason"))
 		}
 	default:
-		return invalid("scope.anchor.kind", fmt.Errorf("unsupported value"))
+		return invalid("anchor.kind", fmt.Errorf("unsupported value"))
 	}
 	return nil
 }

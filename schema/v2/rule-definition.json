@@ -4,7 +4,7 @@
   "title": "Rule Definition",
   "type": "object",
   "additionalProperties": false,
-  "required": ["ruleKey", "domain", "ruleSet", "name", "version", "changeType", "status", "tenant", "scope", "effective", "declaredInputs", "declaredOutputs", "decisionType", "logic", "engineRef", "metadata"],
+  "required": ["ruleKey", "domain", "ruleSet", "name", "version", "changeType", "status", "tenant", "anchor", "effective", "declaredInputs", "declaredOutputs", "decisionType", "logic", "engineRef", "metadata"],
   "properties": {
     "ruleKey": {"type": "string", "pattern": "^urn:arrowhr:rule:[^:]+:[^:]+:[^:]+:v[1-9][0-9]*$"},
     "domain": {"type": "string", "minLength": 1},
@@ -15,13 +15,8 @@
     "changeType": {"type": "string", "enum": ["MINOR", "MAJOR"]},
     "status": {"type": "string", "enum": ["draft", "pending-approval", "active", "scheduled", "deprecated", "retired"]},
     "tenant": {"type": "string", "minLength": 1},
-    "scope": {
-      "type": "object", "additionalProperties": false, "required": ["anchor"],
-      "properties": {
-        "anchor": {"$ref": "#/$defs/anchor"},
-        "filters": {"type": "array", "items": {"$ref": "#/$defs/filter"}}
-      }
-    },
+    "anchor": {"$ref": "#/$defs/anchor"},
+    "attributeFilters": {"type": "array", "items": {"$ref": "#/$defs/filter"}},
     "tieBreakPriority": {"type": "integer"},
     "conflictPolicy": {"type": "string"},
     "effective": {
@@ -63,16 +58,11 @@
   },
   "$defs": {
     "anchor": {
-      "anyOf": [
-        {
-          "type": "object", "additionalProperties": false, "required": ["kind", "nodeId"],
-          "properties": {"kind": {"const": "node"}, "nodeId": {"type": "string", "minLength": 1}, "reason": {"type": "string"}}
-        },
-        {
-          "type": "object", "additionalProperties": false, "required": ["kind", "employeeId", "reason"],
-          "properties": {"kind": {"const": "employee"}, "employeeId": {"type": "string", "minLength": 1}, "reason": {"type": "string", "minLength": 1}}
-        }
-      ]
+      "type": "object", "additionalProperties": false, "required": ["nodeId"],
+      "properties": {
+        "kind": {"const": "node"},
+        "nodeId": {"type": "string", "minLength": 1}
+      }
     },
     "filter": {
       "type": "object", "additionalProperties": false, "required": ["attribute", "op"],

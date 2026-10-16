@@ -2,7 +2,11 @@ package ruleengine
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 
 	"github.com/arrowhr/ruleengine/audit"
@@ -10,6 +14,7 @@ import (
 	"github.com/arrowhr/ruleengine/engine"
 	"github.com/arrowhr/ruleengine/fact"
 	"github.com/arrowhr/ruleengine/hierarchy"
+	"github.com/arrowhr/ruleengine/internal/decimalx"
 	"github.com/arrowhr/ruleengine/registry"
 	"github.com/arrowhr/ruleengine/resolve"
 	"github.com/arrowhr/ruleengine/rule"
@@ -39,6 +44,9 @@ func (s *session) evaluate(ctx context.Context, request EvalRequest, point Point
 	// EvaluateAll usable, where the caller gives a list of keys and nothing
 	// else, and keeps the request that reaches the schema complete.
 	request.Routing = completeRouting(request.Routing)
+	if request.Context == nil {
+		request.Context = map[string]any{}
+	}
 	state := &evaluation{
 		session: s,
 		config:  s.engine.config,
@@ -57,36 +65,43 @@ func (s *session) evaluate(ctx context.Context, request EvalRequest, point Point
 
 	snapshot, winner, failed := state.stageResolve(ctx)
 	if failed != nil {
-		return state.finish(*failed), nil
+		return state.finish(ctx, *failed)
+	}
+	if state.defaulted {
+		return state.finish(ctx, ReasonDefaultApplied)
 	}
 	if failed := state.stageVersion(ctx, winner); failed != nil {
-		return state.finish(*failed), nil
+		return state.finish(ctx, *failed)
 	}
 	facts, failed := state.stageFetchFacts(ctx, winner)
 	if failed != nil {
-		return state.finish(*failed), nil
+		return state.finish(ctx, *failed)
 	}
-	if failed := state.stageValidate(snapshot, winner, facts); failed != nil {
-		return state.finish(*failed), nil
+	state.inputsHash = hashInputs(facts, request.Subject.Attributes)
+	if failed := state.stageValidate(ctx, snapshot, winner, facts); failed != nil {
+		return state.finish(ctx, *failed)
 	}
 	if failed := state.stageEvaluate(ctx, winner, facts); failed != nil {
-		return state.finish(*failed), nil
+		return state.finish(ctx, *failed)
 	}
-	return state.finish(ReasonOK), nil
+	return state.finish(ctx, ReasonOK)
 }
 
 // evaluation is one decision's working state.
 type evaluation struct {
-	session  *session
-	config   Config
-	request  EvalRequest
-	point    Point
-	decision Decision
+	session   *session
+	config    Config
+	request   EvalRequest
+	point     Point
+	decision  Decision
+	hierarchy *hierarchy.Snapshot
 	// reasons accumulates non-fatal codes until the decision is built.
 	reasons []ReasonCode
 	// retriedLoad records that a pin miss already cost one loader fetch, so a
 	// decision cannot trigger more than one.
 	retriedLoad bool
+	defaulted   bool
+	inputsHash  string
 }
 
 func (s *evaluation) note(code ReasonCode) { s.reasons = append(s.reasons, code) }
@@ -108,10 +123,28 @@ func (s *evaluation) stageResolve(ctx context.Context) (*store.Snapshot, *rule.R
 		s.decision.ValidAt = *s.request.ValidAt
 	}
 
-	snapshot := s.session.engine.cache.Load()
+	snapshot := s.session.snapshot
 	if snapshot == nil {
 		return nil, nil, fail(ReasonHierarchyUnavailable)
 	}
+	hierarchyPin := ""
+	if s.request.RunID != "" {
+		run, err := s.session.engine.versions.RunManifest(ctx, s.request.Tenant.ID, s.request.RunID)
+		if err != nil {
+			return nil, nil, fail(ReasonPinnedVersionUnavailable)
+		}
+		if s.request.ValidAt != nil && !s.request.ValidAt.Equal(run.ValidAt) {
+			return nil, nil, fail(ReasonPinnedVersionUnavailable)
+		}
+		s.decision.ValidAt = run.ValidAt
+		hierarchyPin = run.HierarchySnapshotID
+	}
+	hierarchySnapshot, hierarchyID, found := snapshot.HierarchyAt(s.request.Tenant.ID, s.decision.ValidAt, hierarchyPin)
+	if !found {
+		return nil, nil, fail(ReasonHierarchyNotConfigured)
+	}
+	s.hierarchy = hierarchySnapshot
+	s.decision.HierarchySnapshotID = hierarchyID
 	if stale := s.session.engine.cache.StaleSeconds(); s.staleThreshold() > 0 && stale > s.staleThreshold() {
 		// The decision proceeds: refusing every decision because a reconcile
 		// is late would turn a degraded cache into an outage. It is recorded
@@ -125,15 +158,24 @@ func (s *evaluation) stageResolve(ctx context.Context) (*store.Snapshot, *rule.R
 	// win rather than contradicting the one that did, and a run pinned to an
 	// older version correctly sees the rule set as it was then.
 	family := s.request.Routing.RuleKey.Family()
-	candidates, versionErr := s.session.engine.versions.Resolve(ctx, store.VersionRequest{
+	versionRequest := store.VersionRequest{
 		Tenant:      s.request.Tenant.ID,
 		RuleKey:     s.request.Routing.RuleKey,
 		RunID:       s.request.RunID,
 		ExplicitPin: s.request.RuleVersionPin,
 		EffectiveAt: s.decision.ValidAt,
-	})
+	}
+	candidates, versionErr := s.session.engine.versions.ResolveSnapshot(ctx, snapshot, versionRequest)
 	if versionErr != nil {
-		if code := s.versionFailure(ctx, versionErr); code != nil {
+		if isPinFailure(versionErr) && s.session.engine.options.loader != nil && !s.retriedLoad {
+			s.retriedLoad = true
+			if reloadErr := s.session.engine.Reload(ctx); reloadErr == nil {
+				s.session.refresh()
+				snapshot = s.session.snapshot
+				candidates, versionErr = s.session.engine.versions.ResolveSnapshot(ctx, snapshot, versionRequest)
+			}
+		}
+		if code := s.versionFailure(versionErr); code != nil {
 			span.RecordError(versionErr)
 			return nil, nil, code
 		}
@@ -155,9 +197,10 @@ func (s *evaluation) stageResolve(ctx context.Context) (*store.Snapshot, *rule.R
 		Attributes: s.request.Subject.Attributes,
 		Context:    s.request.Context,
 		ValidAt:    s.decision.ValidAt,
-	}, candidates, snapshot.Hierarchy())
+	}, candidates, hierarchySnapshot)
 
 	s.decision.SubjectPath = result.Path
+	s.decision.AnchorPath = pathNodeIDs(result.Path)
 	s.decision.Evaluated = evaluatedFrom(result)
 	s.recordAnomalies(result, family)
 
@@ -171,22 +214,26 @@ func (s *evaluation) stageResolve(ctx context.Context) (*store.Snapshot, *rule.R
 			telemetry.Label{Key: telemetry.LabelRuleSet, Value: family.RuleSet},
 			telemetry.Label{Key: telemetry.LabelName, Value: family.Name},
 		).Inc()
-		return nil, nil, fail(ReasonPrecedenceTieUnresolved)
+		s.note(ReasonPrecedenceConflict)
 	}
 	if result.FailClosed || result.Winner == nil {
 		switch result.ReasonCode {
 		case "HIERARCHY_UNAVAILABLE":
-			return nil, nil, fail(ReasonHierarchyUnavailable)
+			return nil, nil, fail(ReasonHierarchyNotConfigured)
 		case "SUBJECT_NODE_UNRESOLVABLE":
-			return nil, nil, fail(ReasonSubjectNodeUnresolvable)
+			return nil, nil, fail(ReasonHierarchyNotConfigured)
 		default:
+			if s.applyDefault(snapshot, family) {
+				return snapshot, nil, nil
+			}
 			return nil, nil, fail(ReasonNoRuleResolved)
 		}
 	}
 
 	precedence := result.Winner.Precedence
 	s.decision.ResolvedAt = &precedence
-	s.decision.ResolvedAttributes = s.resolveAttributes(snapshot.Hierarchy())
+	s.decision.ResolvedAtNode = precedence.NodeID
+	s.decision.ResolvedAttributes = s.resolveAttributes(hierarchySnapshot)
 	return snapshot, result.Winner.Rule, nil
 }
 
@@ -214,19 +261,13 @@ func (s *evaluation) stageVersion(ctx context.Context, winner *rule.RuleDefiniti
 // obtained is retried against the loader once, because a batch run opened
 // before this replica last reloaded is the ordinary cause and one fetch is
 // cheaper than a failed payroll line.
-func (s *evaluation) versionFailure(ctx context.Context, err error) *ReasonCode {
+func (s *evaluation) versionFailure(err error) *ReasonCode {
 	if errors.Is(err, store.ErrEffectiveVersionUnavailable) {
 		// Nothing governs this business time, which resolution reports as no
 		// rule rather than as a pin problem.
 		return nil
 	}
 	if isPinFailure(err) {
-		if s.session.engine.options.loader != nil && !s.retriedLoad {
-			s.retriedLoad = true
-			if reloadErr := s.session.engine.Reload(ctx); reloadErr == nil {
-				return nil
-			}
-		}
 		return fail(ReasonPinnedVersionUnavailable)
 	}
 	if errors.Is(err, store.ErrCacheUnavailable) {
@@ -246,22 +287,36 @@ func (s *evaluation) stageFetchFacts(ctx context.Context, winner *rule.RuleDefin
 		return nil, fail(ReasonFactUnresolvable)
 	}
 
-	// Whatever the caller supplied, plus whatever the service computes itself.
-	// A context builder runs before fetching so its values are taken as given
-	// rather than fetched again.
+	// Whatever the caller supplied, plus native facts the service computes
+	// itself. The builder is never asked for passed, derived, or dataset fields:
+	// allowing it to fill those names would bypass their declared source and
+	// the dataset compiler's security guardrails.
 	have := make(map[string]any, len(s.request.Context))
 	for name, value := range s.request.Context {
 		have[name] = value
 	}
-	if builder := s.session.engine.options.contextBuilder; builder != nil && len(winner.DeclaredInputs) > 0 {
-		built, err := builder.Build(ctx, winner.DeclaredInputs, s.request.Subject.Identifier.Value, s.period())
-		if err != nil {
-			span.RecordError(err)
-			return nil, fail(ReasonFactUnresolvable)
+	if builder := s.session.engine.options.contextBuilder; builder != nil {
+		nativeInputs := make([]string, 0, len(winner.DeclaredInputs))
+		fields := s.session.snapshot.Registry()
+		for _, name := range winner.DeclaredInputs {
+			if _, supplied := have[name]; supplied {
+				continue
+			}
+			definition, known := fields.Field(name)
+			if known && definition.FactSource.Kind == registry.FactNative {
+				nativeInputs = append(nativeInputs, name)
+			}
 		}
-		for name, value := range built {
-			if _, supplied := have[name]; !supplied {
-				have[name] = value
+		if len(nativeInputs) > 0 {
+			built, err := builder.Build(ctx, nativeInputs, s.request.Subject.Identifier.Value, s.period())
+			if err != nil {
+				span.RecordError(err)
+				return nil, fail(ReasonFactUnresolvable)
+			}
+			for _, name := range nativeInputs {
+				if value, found := built[name]; found {
+					have[name] = value
+				}
 			}
 		}
 	}
@@ -319,9 +374,9 @@ func (s *evaluation) factPins(ctx context.Context, fields []string) (map[string]
 // stage 4: Validate. Check every declared input against the registry before
 // the engine sees it.
 func (s *evaluation) stageValidate(
-	snapshot *store.Snapshot, winner *rule.RuleDefinition, facts map[string]any,
+	ctx context.Context, snapshot *store.Snapshot, winner *rule.RuleDefinition, facts map[string]any,
 ) *ReasonCode {
-	_, span := s.session.engine.options.tracer.Start(context.Background(), telemetry.SpanValidate)
+	_, span := s.session.engine.options.tracer.Start(ctx, telemetry.SpanValidate)
 	defer span.End()
 	// Checking facts against the registry is what strict validation adds.
 	if s.config.Validation != ValidationStrict {
@@ -377,7 +432,7 @@ func (s *evaluation) stageEvaluate(
 	if s.config.Validation != ValidationStrict {
 		return nil
 	}
-	snapshot := s.session.engine.cache.Load()
+	snapshot := s.session.snapshot
 	if snapshot == nil || snapshot.Registry() == nil {
 		return fail(ReasonOutputContractViolation)
 	}
@@ -389,8 +444,8 @@ func (s *evaluation) stageEvaluate(
 }
 
 // stage 6: Map and log. Build the decision, record it, and measure it.
-func (s *evaluation) finish(governing ReasonCode) Decision {
-	_, span := s.session.engine.options.tracer.Start(context.Background(), telemetry.SpanMap)
+func (s *evaluation) finish(ctx context.Context, governing ReasonCode) (Decision, error) {
+	_, span := s.session.engine.options.tracer.Start(ctx, telemetry.SpanMap)
 	defer span.End()
 
 	s.decision.Failed = governing.Fatal()
@@ -416,9 +471,18 @@ func (s *evaluation) finish(governing ReasonCode) Decision {
 	}
 	s.session.span.SetAttr("reason", governing.String())
 
-	// Logging never blocks or fails a decision that has already been made.
-	options.decisionLogger.Log(s.auditRecord())
-	return s.decision
+	record := s.auditRecord()
+	if durable, ok := options.decisionLogger.(audit.DurableDecisionLogger); ok {
+		if err := durable.LogDurably(ctx, record); err != nil {
+			span.RecordError(err)
+			return s.decision, fmt.Errorf("persist decision audit %q: %w", s.decision.DecisionID, err)
+		}
+	} else {
+		// Best-effort loggers remain asynchronous and do not extend decision
+		// latency. RequireDurableAudit opts into the stronger contract above.
+		options.decisionLogger.Log(record)
+	}
+	return s.decision, nil
 }
 
 func (s *evaluation) auditRecord() audit.Record {
@@ -433,10 +497,12 @@ func (s *evaluation) auditRecord() audit.Record {
 		SubjectID:    s.request.Subject.Identifier.Value,
 		NodeID:       s.request.Subject.NodeID,
 		Result:       s.decision.Result,
+		InputsHash:   s.inputsHash,
 		Failed:       s.decision.Failed,
 		AsOf:         s.decision.AsOf, ValidAt: s.decision.ValidAt,
-		RunID: s.decision.RunID, IdempotencyKey: s.request.IdempotencyKey,
-		CorrelationID: s.decision.CorrelationID, Traceparent: s.decision.Traceparent,
+		RunID: s.decision.RunID, HierarchySnapshotID: s.decision.HierarchySnapshotID,
+		IdempotencyKey: s.request.IdempotencyKey,
+		CorrelationID:  s.decision.CorrelationID, Traceparent: s.decision.Traceparent,
 		LibVersion: s.decision.LibVersion,
 	}
 	if s.decision.ResolvedAt != nil {
@@ -467,6 +533,19 @@ func (s *evaluation) auditRecord() audit.Record {
 	return record
 }
 
+func hashInputs(facts, attributes map[string]any) string {
+	payload := struct {
+		Facts      map[string]any `json:"facts"`
+		Attributes map[string]any `json:"attributes"`
+	}{Facts: facts, Attributes: attributes}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return ""
+	}
+	digest := sha256.Sum256(encoded)
+	return hex.EncodeToString(digest[:])
+}
+
 // validateRequest checks the envelope before anything is looked up.
 func (s *evaluation) validateRequest() *ReasonCode {
 	if s.request.Tenant.ID == "" || s.request.Tenant.ID != s.config.Tenant {
@@ -478,6 +557,11 @@ func (s *evaluation) validateRequest() *ReasonCode {
 	}
 	if s.request.AsOf.IsZero() {
 		return fail(ReasonSchemaInvalid)
+	}
+	if s.request.Currency != "" {
+		if _, err := decimalx.CurrencyScaleStrict(s.request.Currency); err != nil {
+			return fail(ReasonSchemaInvalid)
+		}
 	}
 	parts, err := s.request.Routing.RuleKey.Parse()
 	if err != nil {
@@ -500,7 +584,7 @@ func (s *evaluation) validateRequest() *ReasonCode {
 	// An employee decision without a node cannot be placed in the hierarchy,
 	// and precedence is derived from that placement.
 	if s.request.Subject.Type == "employee" && s.request.Subject.NodeID == "" {
-		return fail(ReasonSubjectNodeUnresolvable)
+		return fail(ReasonHierarchyNotConfigured)
 	}
 	if s.config.Validation != ValidationOff {
 		if err := validateRequestSchema(s.request); err != nil {
@@ -559,6 +643,13 @@ func (s *evaluation) resolveAttributes(snapshot *hierarchy.Snapshot) map[string]
 // factFailure maps a fact-resolution failure onto the reason catalogue, so the
 // decision carries the specific cause rather than a generic one.
 func (s *evaluation) factFailure(err error) *ReasonCode {
+	var compile *dataset.Fault
+	if errors.As(err, &compile) {
+		if detail, parseErr := ParseReasonCode(compile.Code); parseErr == nil {
+			s.note(detail)
+		}
+		return fail(ReasonDatasetRecipeInvalid)
+	}
 	if code, parseErr := ParseReasonCode(fact.Code(err)); parseErr == nil {
 		return &code
 	}
@@ -566,14 +657,36 @@ func (s *evaluation) factFailure(err error) *ReasonCode {
 	if errors.As(err, &budget) {
 		return fail(ReasonFactUnresolvable)
 	}
-	var compile *dataset.Fault
-	if errors.As(err, &compile) {
-		return fail(ReasonFactUnresolvable)
-	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return fail(ReasonFactTimeout)
 	}
 	return fail(ReasonFactUnresolvable)
+}
+
+func (s *evaluation) applyDefault(snapshot *store.Snapshot, family rule.Family) bool {
+	policy, found := snapshot.DefaultPolicy(s.request.Tenant.ID, family)
+	if !found || (s.point.DecisionType != "" && policy.DecisionType != s.point.DecisionType) {
+		return false
+	}
+	result := make(map[string]any, len(policy.Result)+1)
+	outputs := make([]string, 0, len(policy.Result)+1)
+	for name, value := range policy.Result {
+		result[name] = value
+		outputs = append(outputs, name)
+	}
+	if _, present := result["reasonCode"]; !present {
+		result["reasonCode"] = policy.ReasonCode
+		outputs = append(outputs, "reasonCode")
+	}
+	if s.config.Validation == ValidationStrict {
+		if fields := snapshot.Registry(); fields == nil || fields.ValidateOutputs(outputs, result) != nil {
+			return false
+		}
+	}
+	s.decision.DecisionType = policy.DecisionType
+	s.decision.Result = result
+	s.defaulted = true
+	return true
 }
 
 // registryFailure maps a validation failure onto the specific reason code, so
@@ -605,8 +718,9 @@ func evaluatedFrom(result resolve.Result) []Evaluated {
 		}
 		evaluated = append(evaluated, Evaluated{
 			RuleKey: candidate.Rule.RuleKey, RuleVersion: candidate.Rule.Version,
-			Anchor: candidate.Rule.Scope.Anchor,
-			Order:  candidate.Precedence.Order, Depth: candidate.Precedence.Depth,
+			AnchorNodeID: candidate.Rule.EffectiveAnchor().NodeID,
+			Anchor:       candidate.Rule.EffectiveAnchor(),
+			Order:        candidate.Precedence.Order, Depth: candidate.Precedence.Depth,
 			OnPath: candidate.OnPath, FiltersMatched: candidate.FiltersMatched,
 			Winner: candidate.Winner, EliminatedBy: candidate.EliminatedBy,
 			Reason: candidate.Reason,
@@ -616,6 +730,17 @@ func evaluatedFrom(result resolve.Result) []Evaluated {
 		return nil
 	}
 	return evaluated
+}
+
+func pathNodeIDs(path []hierarchy.PathEntry) []string {
+	if len(path) == 0 {
+		return nil
+	}
+	ids := make([]string, len(path))
+	for index, entry := range path {
+		ids[index] = entry.NodeID
+	}
+	return ids
 }
 
 func factsResolvedFrom(resolved []fact.Resolved) []FactResolved {

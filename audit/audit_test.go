@@ -1,9 +1,11 @@
 package audit
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -220,13 +222,14 @@ func TestNopLoggerAcceptsEverything(t *testing.T) {
 
 func TestSlogSinkWritesOneLinePerRecord(t *testing.T) {
 	var lines int
+	var output bytes.Buffer
 	handler := slog.NewTextHandler(writerFunc(func(p []byte) (int, error) {
 		lines++
-		return len(p), nil
+		return output.Write(p)
 	}), nil)
 	sink := NewSlogSink(slog.New(handler))
 	batch := []Record{
-		{DecisionID: "a", Tenant: "RWB", Failed: false},
+		{DecisionID: "a", Tenant: "RWB", SubjectID: "secret-employee", InputsHash: "digest", Failed: false},
 		{DecisionID: "b", Tenant: "RWB", Failed: true, ReasonCodes: []string{"NO_RULE_RESOLVED"}},
 	}
 	if err := sink.Write(context.Background(), batch); err != nil {
@@ -234,6 +237,9 @@ func TestSlogSinkWritesOneLinePerRecord(t *testing.T) {
 	}
 	if lines != 2 {
 		t.Fatalf("wrote %d lines for 2 records", lines)
+	}
+	if strings.Contains(output.String(), "secret-employee") || !strings.Contains(output.String(), "digest") {
+		t.Fatalf("operational log leaked a subject or omitted the safe digest: %s", output.String())
 	}
 
 	// A cancelled context stops the write rather than finishing it.
@@ -245,6 +251,40 @@ func TestSlogSinkWritesOneLinePerRecord(t *testing.T) {
 	// A nil logger falls back to the default rather than panicking.
 	if NewSlogSink(nil) == nil {
 		t.Fatal("NewSlogSink(nil) returned nothing")
+	}
+}
+
+type memoryOutbox struct {
+	records []Record
+	err     error
+}
+
+func (o *memoryOutbox) Append(_ context.Context, record Record) error {
+	if o.err != nil {
+		return o.err
+	}
+	o.records = append(o.records, record)
+	return nil
+}
+
+func TestOutboxLoggerIsDurableAndReportsFailure(t *testing.T) {
+	if _, err := NewOutboxLogger(nil); err == nil {
+		t.Fatal("nil outbox was accepted")
+	}
+	outbox := &memoryOutbox{}
+	logger, err := NewOutboxLogger(outbox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := logger.LogDurably(context.Background(), Record{DecisionID: "d1"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(outbox.records) != 1 || outbox.records[0].RecordedAt.IsZero() {
+		t.Fatalf("outbox records = %+v", outbox.records)
+	}
+	outbox.err = errors.New("disk full")
+	if err := logger.LogDurably(context.Background(), Record{DecisionID: "d2"}); err == nil {
+		t.Fatal("outbox failure was hidden")
 	}
 }
 

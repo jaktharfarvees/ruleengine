@@ -27,17 +27,26 @@ func TestExactArithmetic(t *testing.T) {
 }
 
 func TestQuantizeAndCurrencyScale(t *testing.T) {
-	if got := QuantizeCurrency(MustParse("12.345"), "LKR").StringFixed(2); got != "12.35" {
+	if got := QuantizeCurrency(MustParse("12.345"), "LKR").StringFixed(2); got != "12.34" {
 		t.Fatalf("LKR quantization = %s", got)
 	}
-	if got := QuantizeCurrency(MustParse("12.5"), "JPY").StringFixed(0); got != "13" {
+	if got := QuantizeCurrency(MustParse("12.5"), "JPY").StringFixed(0); got != "12" {
 		t.Fatalf("JPY quantization = %s", got)
 	}
-	if got := QuantizeCurrency(MustParse("1.2345"), "KWD").StringFixed(3); got != "1.235" {
+	if got := QuantizeCurrency(MustParse("1.2345"), "KWD").StringFixed(3); got != "1.234" {
 		t.Fatalf("KWD quantization = %s", got)
 	}
 	if CurrencyScale(" usd ") != 2 || CurrencyScale("KRW") != 0 || CurrencyScale("BHD") != 3 || CurrencyScale("CLF") != 4 {
 		t.Fatal("unexpected currency scales")
+	}
+	if got := MustParse("12.355").Quantize(2).StringFixed(2); got != "12.36" {
+		t.Fatalf("half-even odd tie = %s", got)
+	}
+	if got := MustParse("-12.345").Quantize(2).StringFixed(2); got != "-12.34" {
+		t.Fatalf("negative half-even tie = %s", got)
+	}
+	if _, err := CurrencyScaleStrict("ZZZ"); err == nil {
+		t.Fatal("unknown currency silently used a two-digit scale")
 	}
 	if got := MustParse("-0.000").String(); got != "0" {
 		t.Fatalf("negative zero = %q", got)

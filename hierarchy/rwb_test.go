@@ -62,7 +62,7 @@ func TestVariantSpecificContracts(t *testing.T) {
 		t.Fatal(err)
 	}
 	path, _ := nested.Path("RWB", "BR001")
-	if path[1].TypeID != "department" || path[2].TypeID != "department" || path[1].Depth <= path[2].Depth {
+	if path[2].TypeID != "department" || path[3].TypeID != "department" || path[2].Depth >= path[3].Depth {
 		t.Fatalf("nested department path = %#v", path)
 	}
 	inactive, err := ruletest.LoadHierarchy("rwb-inactive.json")

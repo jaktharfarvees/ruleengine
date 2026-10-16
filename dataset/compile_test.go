@@ -95,7 +95,7 @@ func TestCompileRefusals(t *testing.T) {
 			s.Kind = registry.FactPassed
 		}, ReasonUnresolvable},
 		{"invalid manifest", func(_ *registry.FactSource, m *Manifest, _ *Params) {
-			m.Grain = ""
+			m.OwnerService, m.SourceService = "", ""
 		}, ReasonDatasetNotPublished},
 		{"declared dataset disagrees", func(s *registry.FactSource, _ *Manifest, _ *Params) {
 			s.Dataset = "other.thing"

@@ -15,12 +15,25 @@ const (
 	ReasonSchemaInvalid ReasonCode = "SCHEMA_INVALID"
 	// ReasonHierarchyUnavailable means no hierarchy snapshot was available.
 	ReasonHierarchyUnavailable ReasonCode = "HIERARCHY_UNAVAILABLE"
-	// ReasonSubjectNodeUnresolvable means the subject node was missing, unknown, or inactive.
+	// ReasonHierarchyNotConfigured means the tenant or subject has no
+	// resolvable hierarchy path.
+	ReasonHierarchyNotConfigured ReasonCode = "HIERARCHY_NOT_CONFIGURED"
+	// ReasonSubjectNodeUnresolvable is retained for source compatibility with
+	// v1. V2 emits HIERARCHY_NOT_CONFIGURED for this condition.
+	// Deprecated: use ReasonHierarchyNotConfigured.
 	ReasonSubjectNodeUnresolvable ReasonCode = "SUBJECT_NODE_UNRESOLVABLE"
 	// ReasonNoRuleResolved means no candidate survived resolution.
 	ReasonNoRuleResolved ReasonCode = "NO_RULE_RESOLVED"
-	// ReasonPrecedenceTieUnresolved means candidates remained tied after every tie-break.
+	// ReasonDefaultApplied means an explicit tenant-authored low-risk fallback
+	// was used because no rule resolved.
+	ReasonDefaultApplied ReasonCode = "DEFAULT_APPLIED"
+	// ReasonPrecedenceTieUnresolved is retained for source compatibility with
+	// v1. V2 applies a deterministic fallback and emits PRECEDENCE_CONFLICT.
+	// Deprecated: use ReasonPrecedenceConflict.
 	ReasonPrecedenceTieUnresolved ReasonCode = "PRECEDENCE_TIE_UNRESOLVED"
+	// ReasonPrecedenceConflict records a same-rank conflict that escaped
+	// publication lint and was resolved by the deterministic runtime fallback.
+	ReasonPrecedenceConflict ReasonCode = "PRECEDENCE_CONFLICT"
 	// ReasonCrossTenantRuleDropped records a discarded cross-tenant candidate.
 	ReasonCrossTenantRuleDropped ReasonCode = "CROSS_TENANT_RULE_DROPPED"
 	// ReasonPinnedVersionUnavailable means a required pin could not be obtained.
@@ -51,6 +64,9 @@ const (
 	ReasonFactShadowedAttribute ReasonCode = "FACT_SHADOWED_ATTRIBUTE"
 	// ReasonDatasetNotPublished means a dataset was unknown or unpublished.
 	ReasonDatasetNotPublished ReasonCode = "DATASET_NOT_PUBLISHED"
+	// ReasonDatasetRecipeInvalid means an authored dataset recipe violated a
+	// compile guardrail and should have been rejected at publication.
+	ReasonDatasetRecipeInvalid ReasonCode = "DATASET_RECIPE_INVALID"
 	// ReasonDatasetDeprecated records use of a deprecated dataset.
 	ReasonDatasetDeprecated ReasonCode = "DATASET_DEPRECATED"
 	// ReasonPIIColumnInFilter records a non-subject PII filter.
@@ -67,7 +83,7 @@ const (
 // codes are fatal so malformed external data cannot accidentally fail open.
 func (r ReasonCode) Fatal() bool {
 	switch r {
-	case ReasonOK, ReasonCrossTenantRuleDropped, ReasonFieldDeprecated,
+	case ReasonOK, ReasonDefaultApplied, ReasonPrecedenceConflict, ReasonCrossTenantRuleDropped, ReasonFieldDeprecated,
 		ReasonFactShadowedAttribute, ReasonDatasetDeprecated,
 		ReasonPIIColumnInFilter, ReasonCacheStale:
 		return false
@@ -83,16 +99,16 @@ func (r ReasonCode) String() string { return string(r) }
 // pipeline reaches them: envelope, resolution, version, facts, evaluation,
 // then the operational notes.
 var reasonCatalogue = []ReasonCode{
-	ReasonOK, ReasonSchemaInvalid, ReasonHierarchyUnavailable,
-	ReasonSubjectNodeUnresolvable, ReasonNoRuleResolved,
-	ReasonPrecedenceTieUnresolved, ReasonCrossTenantRuleDropped,
+	ReasonOK, ReasonSchemaInvalid, ReasonHierarchyUnavailable, ReasonHierarchyNotConfigured,
+	ReasonNoRuleResolved, ReasonDefaultApplied,
+	ReasonPrecedenceConflict, ReasonCrossTenantRuleDropped,
 	ReasonPinnedVersionUnavailable, ReasonFieldNotRegistered,
 	ReasonFieldDeprecated, ReasonFieldTypeMismatch,
 	ReasonFactUnresolvable, ReasonFactBudgetExceeded, ReasonFactTimeout,
 	ReasonFactRawQueryRejected, ReasonFactColumnNotAllowed,
 	ReasonFactAggregateUnsupported, ReasonFactWindowTooWide,
 	ReasonFactDerivedCycle, ReasonFactShadowedAttribute,
-	ReasonDatasetNotPublished, ReasonDatasetDeprecated,
+	ReasonDatasetNotPublished, ReasonDatasetRecipeInvalid, ReasonDatasetDeprecated,
 	ReasonPIIColumnInFilter, ReasonEngineError,
 	ReasonOutputContractViolation, ReasonCacheStale,
 }
@@ -110,16 +126,16 @@ func ReasonCodes() []ReasonCode {
 // Valid reports whether r belongs to the reason-code catalogue.
 func (r ReasonCode) Valid() bool {
 	switch r {
-	case ReasonOK, ReasonSchemaInvalid, ReasonHierarchyUnavailable,
-		ReasonSubjectNodeUnresolvable, ReasonNoRuleResolved,
-		ReasonPrecedenceTieUnresolved, ReasonCrossTenantRuleDropped,
+	case ReasonOK, ReasonSchemaInvalid, ReasonHierarchyUnavailable, ReasonHierarchyNotConfigured,
+		ReasonNoRuleResolved, ReasonDefaultApplied,
+		ReasonPrecedenceConflict, ReasonCrossTenantRuleDropped,
 		ReasonPinnedVersionUnavailable, ReasonFieldNotRegistered,
 		ReasonFieldDeprecated, ReasonFieldTypeMismatch,
 		ReasonFactUnresolvable, ReasonFactBudgetExceeded, ReasonFactTimeout,
 		ReasonFactRawQueryRejected, ReasonFactColumnNotAllowed,
 		ReasonFactAggregateUnsupported, ReasonFactWindowTooWide,
 		ReasonFactDerivedCycle, ReasonFactShadowedAttribute,
-		ReasonDatasetNotPublished, ReasonDatasetDeprecated,
+		ReasonDatasetNotPublished, ReasonDatasetRecipeInvalid, ReasonDatasetDeprecated,
 		ReasonPIIColumnInFilter, ReasonEngineError,
 		ReasonOutputContractViolation, ReasonCacheStale:
 		return true

@@ -8,7 +8,8 @@ Accepted for the initial offline build environment.
 
 ## Context
 
-Phase 1 must validate seven embedded JSON Schema 2020-12 documents. The build
+The module validates six public artifact contracts plus supporting hierarchy
+and run-manifest schemas. The build
 environment cannot download the approved `santhosh-tekuri/jsonschema/v6` module,
 and adding an unavailable module would make the repository impossible to build
 or test. The schemas use a deliberately small, closed keyword set.

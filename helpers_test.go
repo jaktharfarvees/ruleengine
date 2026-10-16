@@ -31,9 +31,16 @@ func sharedBundle(t *testing.T) store.Bundle {
 // the pipeline tests need, which exist only to give a decision point a second
 // rule declaring the same fact.
 func engineOver(t *testing.T, config ruleengine.Config, opts ...ruleengine.Option) *ruleengine.Engine {
+	return engineOverBundle(t, config, nil, opts...)
+}
+
+func engineOverBundle(t *testing.T, config ruleengine.Config, mutate func(*store.Bundle), opts ...ruleengine.Option) *ruleengine.Engine {
 	t.Helper()
 	bundle := sharedBundle(t)
 	bundle.Rules = append(bundle.Rules, pipelineRules()...)
+	if mutate != nil {
+		mutate(&bundle)
+	}
 	instance, err := ruleengine.New(config, opts...)
 	if err != nil {
 		t.Fatal(err)

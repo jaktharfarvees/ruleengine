@@ -137,7 +137,6 @@ func newEngine(logger *slog.Logger) (*ruleengine.Engine, func(), error) {
 			MaxRowsScanned:   5000,
 		},
 		// Money and compliance domains fail closed rather than falling back.
-		FailClosedDomains: []string{"payroll", "leave"},
 		// Zero means no background goroutine; this example loads once.
 		CacheReloadInterval: 0,
 	},

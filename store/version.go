@@ -55,7 +55,17 @@ func NewVersionResolver(cache *Cache, manifests manifest.Store) *VersionResolver
 // resolution must see the whole slice so a baseline and employee exception at
 // the same version remain distinguishable.
 func (r *VersionResolver) Resolve(ctx context.Context, request VersionRequest) ([]*rule.RuleDefinition, error) {
-	if r == nil || r.cache == nil || r.cache.Load() == nil {
+	if r == nil || r.cache == nil {
+		return nil, ErrCacheUnavailable
+	}
+	return r.ResolveSnapshot(ctx, r.cache.Load(), request)
+}
+
+// ResolveSnapshot applies version selection to the exact immutable snapshot
+// owned by the current evaluation. It is the hot-path API; Resolve remains for
+// callers that deliberately want the cache's latest published view.
+func (r *VersionResolver) ResolveSnapshot(ctx context.Context, snapshot *Snapshot, request VersionRequest) ([]*rule.RuleDefinition, error) {
+	if r == nil || snapshot == nil {
 		return nil, ErrCacheUnavailable
 	}
 	if request.Tenant == "" || request.RuleKey == "" {
@@ -66,21 +76,12 @@ func (r *VersionResolver) Resolve(ctx context.Context, request VersionRequest) (
 	}
 	pin := request.ExplicitPin
 	if request.RunID != "" {
-		if r.manifests == nil {
-			return nil, fmt.Errorf("%w: %q", ErrRunManifestUnavailable, request.RunID)
-		}
-		run, found, err := r.manifests.Get(ctx, request.RunID)
+		run, err := r.RunManifest(ctx, request.Tenant, request.RunID)
 		if err != nil {
-			// A store that cannot answer is an infrastructure fault, not a
-			// missing pin: the caller should retry or alert rather than treat
-			// the run as unpinned.
-			return nil, fmt.Errorf("read run manifest %q: %w", request.RunID, err)
+			return nil, err
 		}
-		if !found {
-			return nil, fmt.Errorf("%w: %q", ErrRunManifestUnavailable, request.RunID)
-		}
-		if run.Tenant != request.Tenant {
-			return nil, fmt.Errorf("%w: run %q", ErrRunTenantMismatch, request.RunID)
+		if request.EffectiveAt.IsZero() || !request.EffectiveAt.Equal(run.ValidAt) {
+			return nil, fmt.Errorf("%w: run %q validAt is %s", ErrPinnedVersionUnavailable, request.RunID, run.ValidAt.Format(time.RFC3339))
 		}
 		var pinned bool
 		pin, pinned = run.RulePin(request.RuleKey)
@@ -94,7 +95,7 @@ func (r *VersionResolver) Resolve(ctx context.Context, request VersionRequest) (
 		// manifest, because an unapproved rule must not be able to decide
 		// someone's pay; that is a pin failure like any other.
 		evaluable := make([]*rule.RuleDefinition, 0, 2)
-		for _, definition := range r.cache.Version(request.Tenant, request.RuleKey, pin) {
+		for _, definition := range snapshot.Version(request.Tenant, request.RuleKey, pin) {
 			if definition.Status.Evaluable() {
 				evaluable = append(evaluable, definition)
 			}
@@ -111,11 +112,29 @@ func (r *VersionResolver) Resolve(ctx context.Context, request VersionRequest) (
 	// is effective at the requested time. Returning every effective version
 	// instead would hand resolution two versions of one rule, which it reports
 	// as an unresolved precedence tie.
-	snapshot := r.cache.Load()
 	if effective := snapshot.candidatesForKey(request.Tenant, request.RuleKey, request.EffectiveAt); len(effective) > 0 {
 		return effective, nil
 	}
 	return nil, fmt.Errorf("%w: tenant=%q key=%q at=%s", ErrEffectiveVersionUnavailable, request.Tenant, request.RuleKey, request.EffectiveAt.Format(time.RFC3339))
+}
+
+// RunManifest returns a tenant-checked immutable run manifest from the
+// consumer's locally cached manifest store.
+func (r *VersionResolver) RunManifest(ctx context.Context, tenant, runID string) (manifest.RunManifest, error) {
+	if r == nil || r.manifests == nil {
+		return manifest.RunManifest{}, fmt.Errorf("%w: %q", ErrRunManifestUnavailable, runID)
+	}
+	run, found, err := r.manifests.Get(ctx, runID)
+	if err != nil {
+		return manifest.RunManifest{}, fmt.Errorf("read run manifest %q: %w", runID, err)
+	}
+	if !found {
+		return manifest.RunManifest{}, fmt.Errorf("%w: %q", ErrRunManifestUnavailable, runID)
+	}
+	if run.Tenant != tenant {
+		return manifest.RunManifest{}, fmt.Errorf("%w: run %q", ErrRunTenantMismatch, runID)
+	}
+	return run, nil
 }
 
 // FactPin returns a run's frozen fact-source version after enforcing the same

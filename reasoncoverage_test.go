@@ -107,7 +107,7 @@ func reasonScenarios() []scenario {
 		},
 		{
 			name:    "an employee arrives with no node",
-			want:    ruleengine.ReasonSubjectNodeUnresolvable,
+			want:    ruleengine.ReasonHierarchyNotConfigured,
 			request: func(r *ruleengine.EvalRequest) { r.Subject.NodeID = "" },
 		},
 		{
@@ -118,8 +118,34 @@ func reasonScenarios() []scenario {
 			},
 		},
 		{
+			name: "a tenant-authorized default governs an otherwise unresolved rule",
+			want: ruleengine.ReasonDefaultApplied,
+			bundle: func(b *store.Bundle) {
+				b.Catalogs = []rule.RuleCatalog{{
+					CatalogManifestID: "catalog-defaults-v1", Tenant: tenant,
+					Defaults: []rule.DefaultPolicy{{
+						Domain: "leave", RuleSet: "eligibility", Name: "tenant-default",
+						DecisionType: "leave-eligibility",
+						Result:       map[string]any{"eligible": false, "reasonCode": "TENANT_DEFAULT"},
+						ReasonCode:   "TENANT_DEFAULT", AuthorizedBy: "tenant-author:RWB",
+						AuthorizedAt: asOf.Add(-time.Hour),
+					}},
+				}}
+			},
+			request: func(r *ruleengine.EvalRequest) {
+				r.Routing.RuleKey = "urn:arrowhr:rule:leave:eligibility:tenant-default:v1"
+			},
+		},
+		{
 			name: "two equally specific rules at one anchor",
-			want: ruleengine.ReasonPrecedenceTieUnresolved,
+			want: ruleengine.ReasonPrecedenceConflict,
+			bundle: func(b *store.Bundle) {
+				for index := range b.Rules {
+					if b.Rules[index].RuleSet == "conflict" && b.Rules[index].Name == "overlap" {
+						b.Rules[index].TieBreakPriority = nil
+					}
+				}
+			},
 			request: func(r *ruleengine.EvalRequest) {
 				r.Routing.RuleKey = "urn:arrowhr:rule:leave:conflict:overlap:v1"
 				// BR003 sits under D003, where both conflict rules anchor.

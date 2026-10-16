@@ -13,34 +13,40 @@ import (
 // Decision is an explainable evaluation outcome. A business refusal is
 // represented by Failed and ReasonCodes rather than a Go error.
 type Decision struct {
-	DecisionID         string                       `json:"decisionId"`
-	RuleKey            rule.RuleKey                 `json:"ruleKey,omitempty"`
-	RuleVersion        string                       `json:"ruleVersion,omitempty"`
-	DecisionType       string                       `json:"decisionType,omitempty"`
-	Result             map[string]any               `json:"result,omitempty"`
-	ReasonCodes        []ReasonCode                 `json:"reasonCodes"`
-	ResolvedAt         *hierarchy.DerivedPrecedence `json:"resolvedAt,omitempty"`
-	SubjectPath        []hierarchy.PathEntry        `json:"subjectPath,omitempty"`
-	Evaluated          []Evaluated                  `json:"evaluated,omitempty"`
-	FactsResolved      []FactResolved               `json:"factsResolved,omitempty"`
-	ResolvedAttributes map[string]ResolvedAttribute `json:"resolvedAttributes,omitempty"`
-	Obligations        []string                     `json:"obligations,omitempty"`
-	Failed             bool                         `json:"failed"`
-	Tie                *Tie                         `json:"tie,omitempty"`
-	AsOf               time.Time                    `json:"asOf"`
-	ValidAt            time.Time                    `json:"validAt"`
-	RunID              string                       `json:"runId,omitempty"`
-	CorrelationID      string                       `json:"correlationId,omitempty"`
-	Traceparent        string                       `json:"traceparent,omitempty"`
-	Trace              *engine.Trace                `json:"trace,omitempty"`
-	LibVersion         string                       `json:"libVersion"`
+	DecisionID   string         `json:"decisionId"`
+	RuleKey      rule.RuleKey   `json:"ruleKey,omitempty"`
+	RuleVersion  string         `json:"ruleVersion,omitempty"`
+	DecisionType string         `json:"decisionType,omitempty"`
+	Result       map[string]any `json:"result,omitempty"`
+	ReasonCodes  []ReasonCode   `json:"reasonCodes"`
+	// ResolvedAt retains detailed in-process precedence for Go callers.
+	ResolvedAt     *hierarchy.DerivedPrecedence `json:"-"`
+	ResolvedAtNode string                       `json:"resolvedAt,omitempty"`
+	AnchorPath     []string                     `json:"anchorPath,omitempty"`
+	// SubjectPath is the deprecated Go alias for AnchorPath.
+	SubjectPath         []hierarchy.PathEntry        `json:"-"`
+	Evaluated           []Evaluated                  `json:"evaluated,omitempty"`
+	FactsResolved       []FactResolved               `json:"factsResolved,omitempty"`
+	ResolvedAttributes  map[string]ResolvedAttribute `json:"resolvedAttributes,omitempty"`
+	Obligations         []string                     `json:"obligations,omitempty"`
+	Failed              bool                         `json:"failed"`
+	Tie                 *Tie                         `json:"tie,omitempty"`
+	AsOf                time.Time                    `json:"asOf"`
+	ValidAt             time.Time                    `json:"validAt"`
+	RunID               string                       `json:"runId,omitempty"`
+	HierarchySnapshotID string                       `json:"hierarchySnapshotId,omitempty"`
+	CorrelationID       string                       `json:"correlationId,omitempty"`
+	Traceparent         string                       `json:"traceparent,omitempty"`
+	Trace               *engine.Trace                `json:"trace,omitempty"`
+	LibVersion          string                       `json:"libVersion"`
 }
 
 // Evaluated explains how one candidate participated in resolution.
 type Evaluated struct {
 	RuleKey        rule.RuleKey         `json:"ruleKey"`
 	RuleVersion    string               `json:"ruleVersion"`
-	Anchor         rule.Anchor          `json:"anchor"`
+	AnchorNodeID   string               `json:"anchorNodeId,omitempty"`
+	Anchor         rule.Anchor          `json:"-"`
 	Order          int                  `json:"order"`
 	Depth          int                  `json:"depth"`
 	OnPath         bool                 `json:"onPath"`

@@ -26,7 +26,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/arrowhr/ruleengine/dataset"
@@ -184,7 +183,7 @@ func lintFile(result *report, path string) {
 func inferKind(data []byte) string {
 	var probe struct {
 		RuleKey  string          `json:"ruleKey"`
-		Dataset  string          `json:"dataset"`
+		Dataset  string          `json:"datasetId"`
 		Fields   json.RawMessage `json:"fields"`
 		Types    json.RawMessage `json:"types"`
 		Nodes    json.RawMessage `json:"nodes"`
@@ -294,7 +293,7 @@ func lintDataset(result *report, path string, data []byte) {
 		return
 	}
 	if existing, duplicate := result.loadedManifests[manifest.Dataset]; duplicate {
-		result.problem(path, "declares dataset %q, which %q already declares", manifest.Dataset, existing.OwnerService)
+		result.problem(path, "declares dataset %q, which %q already declares", manifest.Dataset, existing.SourceService)
 		return
 	}
 	result.loadedManifests[manifest.Dataset] = manifest
@@ -333,6 +332,9 @@ func lintHierarchy(result *report, path string, data []byte) {
 // mistakes that matter actually live: a rule naming a field nobody registered,
 // or a field naming a dataset nobody published.
 func crossCheck(result *report) {
+	// Ambiguous precedence is rule-to-rule validation and must run even when a
+	// caller lints only rule files without a field registry.
+	reportTies(result)
 	if len(result.loadedFields) == 0 {
 		if len(result.loadedRules) > 0 {
 			result.warn("(cross-check)", "no field registry was linted, so rule inputs and outputs were not checked")
@@ -371,15 +373,15 @@ func crossCheck(result *report) {
 		}
 		// A filter on a hierarchy attribute is the mistake this check exists
 		// for: placement belongs in the anchor, not in a filter.
-		if err := fields.ValidateFilters(loaded.definition.Scope.Filters); err != nil {
+		if err := fields.ValidateFilters(loaded.definition.EffectiveAttributeFilters()); err != nil {
 			result.problem(loaded.path, "%v", err)
 		}
 		// An anchor at a node no linted hierarchy contains is a rule that can
 		// never win, which is worth saying even though the hierarchy is owned
 		// elsewhere and may simply not have been linted here.
 		if known, seen := result.knownNodes[loaded.definition.Tenant]; seen &&
-			loaded.definition.Scope.Anchor.Kind == rule.AnchorNode {
-			anchor := loaded.definition.Scope.Anchor.NodeID
+			loaded.definition.EffectiveAnchor().Kind == rule.AnchorNode {
+			anchor := loaded.definition.EffectiveAnchor().NodeID
 			if _, exists := known[anchor]; !exists {
 				result.warn(loaded.path, "is anchored at %q, which no linted hierarchy for tenant %q contains",
 					anchor, loaded.definition.Tenant)
@@ -409,10 +411,6 @@ func crossCheck(result *report) {
 		}
 	}
 
-	// Two active rules at one anchor with the same specificity and no
-	// tie-break would fail every decision closed. Publish-time is where that
-	// has to be caught.
-	reportTies(result)
 }
 
 func reportTies(result *report) {
@@ -425,7 +423,7 @@ func reportTies(result *report) {
 		key := bucket{
 			tenant: loaded.definition.Tenant, domain: loaded.definition.Domain,
 			ruleSet: loaded.definition.RuleSet, name: loaded.definition.Name,
-			scope: anchorKey(loaded.definition) + "|" + fmt.Sprint(len(loaded.definition.Scope.Filters)),
+			scope: anchorKey(loaded.definition) + "|" + fmt.Sprint(len(loaded.definition.EffectiveAttributeFilters())),
 		}
 		groups[key] = append(groups[key], loaded)
 	}
@@ -439,24 +437,139 @@ func reportTies(result *report) {
 		if len(candidates) < 2 {
 			continue
 		}
-		unprioritised := make([]string, 0, len(candidates))
-		for _, candidate := range candidates {
-			if candidate.definition.TieBreakPriority == nil {
-				unprioritised = append(unprioritised, filepath.Base(candidate.path))
+		for left := 0; left < len(candidates); left++ {
+			for right := left + 1; right < len(candidates); right++ {
+				leftPriority := priorityKey(candidates[left].definition.TieBreakPriority)
+				rightPriority := priorityKey(candidates[right].definition.TieBreakPriority)
+				if leftPriority != rightPriority || !filtersMayOverlap(
+					candidates[left].definition.EffectiveAttributeFilters(),
+					candidates[right].definition.EffectiveAttributeFilters(),
+				) {
+					continue
+				}
+				result.problem(candidates[left].path,
+					"is ambiguous with %s at the same anchor and specificity with priority %s; publication is refused",
+					filepath.Base(candidates[right].path), leftPriority)
 			}
 		}
-		if len(unprioritised) < 2 {
-			continue
-		}
-		sort.Strings(unprioritised)
-		result.warn(candidates[0].path,
-			"is equally specific to %s at the same anchor with no tie-break priority; a decision for a matching subject would fail closed",
-			strings.Join(unprioritised[1:], ", "))
 	}
 }
 
+func priorityKey(priority *int) string {
+	if priority == nil {
+		return "unset"
+	}
+	return fmt.Sprint(*priority)
+}
+
+// filtersMayOverlap proves common disjoint cases and treats everything else as
+// potentially intersecting. Conservative refusal is safer than publishing an
+// ambiguity; unlike the old count-only check, obvious mutually-exclusive
+// equality and set rules are accepted.
+func filtersMayOverlap(left, right []rule.FilterCondition) bool {
+	for _, a := range left {
+		for _, b := range right {
+			if a.Attribute == b.Attribute && filtersDisjoint(a, b) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func filtersDisjoint(left, right rule.FilterCondition) bool {
+	if (left.Op == rule.FilterExists && right.Op == rule.FilterNotExists) ||
+		(left.Op == rule.FilterNotExists && right.Op == rule.FilterExists) {
+		return true
+	}
+	if left.Op == rule.FilterEquals {
+		return equalityDisjoint(left.Value, right)
+	}
+	if right.Op == rule.FilterEquals {
+		return equalityDisjoint(right.Value, left)
+	}
+	leftSet, leftIsSet := filterSet(left)
+	rightSet, rightIsSet := filterSet(right)
+	if !leftIsSet || !rightIsSet {
+		return false
+	}
+	if left.Op == rule.FilterIn && right.Op == rule.FilterIn {
+		return !setsIntersect(leftSet, rightSet)
+	}
+	if left.Op == rule.FilterIn && right.Op == rule.FilterNotIn {
+		return setIsSubset(leftSet, rightSet)
+	}
+	if left.Op == rule.FilterNotIn && right.Op == rule.FilterIn {
+		return setIsSubset(rightSet, leftSet)
+	}
+	return false
+}
+
+func equalityDisjoint(value any, other rule.FilterCondition) bool {
+	wanted := valueKey(value)
+	switch other.Op {
+	case rule.FilterEquals:
+		return wanted != valueKey(other.Value)
+	case rule.FilterIn:
+		set, ok := filterSet(other)
+		return ok && !set[wanted]
+	case rule.FilterNotIn:
+		set, ok := filterSet(other)
+		return ok && set[wanted]
+	case rule.FilterNotExists:
+		return true
+	default:
+		return false
+	}
+}
+
+func filterSet(filter rule.FilterCondition) (map[string]bool, bool) {
+	values, ok := filter.Value.([]any)
+	if !ok {
+		if stringsValue, stringsOK := filter.Value.([]string); stringsOK {
+			values = make([]any, len(stringsValue))
+			for index := range stringsValue {
+				values[index] = stringsValue[index]
+			}
+		} else {
+			return nil, false
+		}
+	}
+	set := make(map[string]bool, len(values))
+	for _, value := range values {
+		set[valueKey(value)] = true
+	}
+	return set, true
+}
+
+func valueKey(value any) string {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Sprintf("%T:%v", value, value)
+	}
+	return string(encoded)
+}
+
+func setsIntersect(left, right map[string]bool) bool {
+	for value := range left {
+		if right[value] {
+			return true
+		}
+	}
+	return false
+}
+
+func setIsSubset(values, excluded map[string]bool) bool {
+	for value := range values {
+		if !excluded[value] {
+			return false
+		}
+	}
+	return true
+}
+
 func anchorKey(definition rule.RuleDefinition) string {
-	anchor := definition.Scope.Anchor
+	anchor := definition.EffectiveAnchor()
 	if anchor.Kind == rule.AnchorEmployee {
 		return "employee:" + anchor.EmployeeID
 	}

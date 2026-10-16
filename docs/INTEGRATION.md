@@ -43,7 +43,7 @@ PII flag, and **where the value comes from**.
 
 ```json
 { "name": "serviceMonths", "domain": "leave", "dataType": "integer",
-  "unit": "months", "pii": false, "ownerService": "employee-service",
+  "unit": "months", "pii": false, "sourceService": "employee-service",
   "status": "active", "role": "input",
   "factSource": { "kind": "derived",
                   "expression": "monthsBetween($joinDate, $validAt)" },
@@ -100,7 +100,7 @@ engine, err := ruleengine.New(ruleengine.Config{
         TotalFactTimeout: 2 * time.Second,
         MaxRowsScanned:   5000,
     },
-    FailClosedDomains:   []string{"leave", "payroll"},
+    RequireDurableAudit: true,
     CacheReloadInterval: 30 * time.Second,
 },
     ruleengine.WithLoader(servicestore.New(...)),
@@ -287,8 +287,8 @@ before anything is published.
 | Symptom | First thing to check |
 |---|---|
 | `NO_RULE_RESOLVED` | is any anchor on the subject's path? Run `ruleplay` |
-| `SUBJECT_NODE_UNRESOLVABLE` | is `nodeId` set, known in this tenant, and active? |
-| `PRECEDENCE_TIE_UNRESOLVED` | two rules equally specific at one anchor. A publishing mistake |
+| `HIERARCHY_NOT_CONFIGURED` | is `nodeId` set, known in this tenant, active, and covered by an effective snapshot? |
+| `PRECEDENCE_CONFLICT` | equal-rank rules escaped publication; inspect the deterministic winner and fix the catalog |
 | `FACT_UNRESOLVABLE` | a passed field missing from the request, or a dataset with no executor |
 | `FIELD_NOT_REGISTERED` | run `rulelint` over rules and registry together |
 | the wrong rule won | `ruleplay` prints every candidate and why each lost |

@@ -26,7 +26,7 @@ BENCH_TIME_REGRESSION_PCT ?= 100
 # affect the pipeline budget, so the time delta is reported but not gated.
 BENCH_GATE_FLOOR_NS ?= 100
 
-.PHONY: help build test race lint vet fuzz bench bench-baseline bench-compare cover vuln tidy schema check docs tools example lint-fixtures
+.PHONY: help build test race lint vet fuzz bench bench-baseline bench-compare cover vuln tidy schema schema-compat check docs tools example lint-fixtures
 
 help: ## List available targets.
 	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z_-]+:.*## / {printf "%-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -138,9 +138,12 @@ schema: ## Validate the embedded schemas against their fixtures.
 	@# added with the first v3 draft, against the embedded v2 copy.
 	@test -d schema/v3 && { echo "schema/v3 exists but no compatibility check is implemented"; exit 1; } || true
 
+schema-compat: ## Enforce the locked additive-only v2 schema contract.
+	$(GO) test ./schema -run '^TestV2CompatibilityBaseline$$'
+
 docs: ## Check package documentation and exported comments.
 	$(GO) vet ./...
 	@$(GO) list -f '{{if not .Doc}}{{.ImportPath}}{{end}}' ./... | awk 'NF {print "missing package comment: " $$0; bad=1} END {exit bad}'
 
-check: vet lint test race cover tidy schema docs ## Run the complete local quality gate.
+check: vet lint test race cover tidy schema schema-compat docs ## Run the complete local quality gate.
 

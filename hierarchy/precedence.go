@@ -40,7 +40,7 @@ func (s *Snapshot) DerivePrecedence(tenant string, anchor rule.Anchor) (DerivedP
 			return DerivedPrecedence{}, err
 		}
 		return DerivedPrecedence{
-			Order: hierarchyType.Order, Depth: path[0].Depth,
+			Order: hierarchyType.Order, Depth: path[len(path)-1].Depth,
 			TypeID: hierarchyType.TypeID, TypeName: hierarchyType.TypeName,
 			NodeName: node.Name, NodeID: node.NodeID,
 		}, nil

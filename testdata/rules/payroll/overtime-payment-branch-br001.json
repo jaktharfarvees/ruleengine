@@ -3,19 +3,12 @@
   "domain": "payroll",
   "ruleSet": "overtime",
   "name": "payment",
-  "description": "Approved individual exception: E9001 is paid overtime from the first hour",
+  "description": "Approved BR001 overtime policy: overtime is paid from the first hour",
   "version": "1.0.0",
   "changeType": "MAJOR",
   "status": "active",
   "tenant": "RWB",
-  "scope": {
-    "anchor": {
-      "kind": "employee",
-      "employeeId": "E9001",
-      "reason": "Retention agreement approved by the CFO on 2025-12-18"
-    },
-    "filters": []
-  },
+  "anchor": {"nodeId": "BR001"},
   "effective": {"validFrom": "2026-01-01T00:00:00Z"},
   "declaredInputs": ["otHours"],
   "declaredOutputs": ["otPayable", "otHoursPaid", "rateMultiplier", "reasonCode"],
@@ -51,6 +44,6 @@
     "owner": "Payroll Operations",
     "createdBy": "rule-service",
     "createdAt": "2026-01-01T00:00:00Z",
-    "changeNote": "Employee anchors outrank every node anchor; every output is restated"
+    "changeNote": "Branch anchors outrank the tenant root; every output is restated"
   }
 }

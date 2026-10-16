@@ -137,6 +137,7 @@ func NewResolver(
 	}
 	copied := make(map[string]dataset.Manifest, len(manifests))
 	for name, manifest := range manifests {
+		manifest = manifest.Canonical()
 		if err := manifest.Validate(); err != nil {
 			return nil, fmt.Errorf("dataset manifest %q: %w", name, err)
 		}

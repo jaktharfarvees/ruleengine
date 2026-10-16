@@ -33,20 +33,20 @@ func TestCommittedFixturesResolveAsDocumented(t *testing.T) {
 		}
 	})
 
-	t.Run("employee exception beats the payroll baseline", func(t *testing.T) {
+	t.Run("branch policy beats the payroll baseline", func(t *testing.T) {
 		baseline := mustLoadRule(t, "payroll/overtime-payment-root.json")
-		exception := mustLoadRule(t, "payroll/overtime-payment-exception-e9001.json")
+		exception := mustLoadRule(t, "payroll/overtime-payment-branch-br001.json")
 		result := resolve.Resolve(fixtureInput("BR001", "E9001", nil), []*rule.RuleDefinition{baseline, exception}, snapshot)
 		assertFixtureWinner(t, result, exception)
-		if !result.Winner.Precedence.IsEmployeeException {
-			t.Fatal("winner is not recorded as an employee exception")
+		if result.Winner.Precedence.NodeID != "BR001" {
+			t.Fatal("winner is not recorded at branch BR001")
 		}
 	})
 
-	t.Run("the exception does not reach another employee", func(t *testing.T) {
+	t.Run("the branch policy does not reach another branch", func(t *testing.T) {
 		baseline := mustLoadRule(t, "payroll/overtime-payment-root.json")
-		exception := mustLoadRule(t, "payroll/overtime-payment-exception-e9001.json")
-		result := resolve.Resolve(fixtureInput("BR001", "E1001", nil), []*rule.RuleDefinition{baseline, exception}, snapshot)
+		exception := mustLoadRule(t, "payroll/overtime-payment-branch-br001.json")
+		result := resolve.Resolve(fixtureInput("BR003", "E1001", nil), []*rule.RuleDefinition{baseline, exception}, snapshot)
 		assertFixtureWinner(t, result, baseline)
 	})
 
@@ -63,22 +63,14 @@ func TestCommittedFixturesResolveAsDocumented(t *testing.T) {
 		assertFixtureWinner(t, outside, root)
 	})
 
-	t.Run("the conflict pair fails closed", func(t *testing.T) {
+	t.Run("the conflict pair resolves by explicit priority", func(t *testing.T) {
 		pair := []*rule.RuleDefinition{
 			mustLoadRule(t, "conflict/tie-a.json"),
 			mustLoadRule(t, "conflict/tie-b.json"),
 		}
 		attrs := map[string]any{"employeeGroup": "Finance", "workerCategory": "PERMANENT"}
 		result := resolve.Resolve(fixtureInput("BR003", "E1001", attrs), pair, snapshot)
-		if result.Winner != nil || result.Tie == nil || !result.FailClosed {
-			t.Fatalf("winner = %v, tie = %v, failClosed = %t; want no winner and a tie", result.Winner, result.Tie, result.FailClosed)
-		}
-		if result.ReasonCode != "PRECEDENCE_TIE_UNRESOLVED" {
-			t.Fatalf("reason code = %q, want PRECEDENCE_TIE_UNRESOLVED", result.ReasonCode)
-		}
-		if len(result.Tie.Candidates) != 2 {
-			t.Fatalf("tie lists %d candidates, want 2", len(result.Tie.Candidates))
-		}
+		assertFixtureWinner(t, result, pair[0])
 	})
 
 	t.Run("the priority pair resolves to the lower number", func(t *testing.T) {

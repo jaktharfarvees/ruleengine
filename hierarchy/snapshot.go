@@ -21,7 +21,7 @@ type Snapshot struct {
 	counts   map[string]int
 }
 
-// NewSnapshot validates types and nodes and precomputes deepest-first paths.
+// NewSnapshot validates types and nodes and precomputes root-to-leaf paths.
 func NewSnapshot(types []Type, nodes []Node) (*Snapshot, error) {
 	snapshot := &Snapshot{
 		nodes:    make(map[key]Node, len(nodes)),
@@ -141,12 +141,13 @@ func (s *Snapshot) computePath(nodeKey key) []PathEntry {
 		current = s.nodes[key{tenant: current.Tenant, id: current.ParentNodeID}]
 	}
 	path := make([]PathEntry, len(lineage))
-	for index, node := range lineage {
+	for index := range lineage {
+		node := lineage[len(lineage)-index-1]
 		hierarchyType := s.types[key{tenant: node.Tenant, id: node.TypeID}]
 		path[index] = PathEntry{
 			NodeID: node.NodeID, Name: node.Name, TypeID: node.TypeID,
 			TypeName: hierarchyType.TypeName, Order: hierarchyType.Order,
-			Depth: len(lineage) - index - 1,
+			Depth: index,
 		}
 	}
 	return path
@@ -164,8 +165,7 @@ func (s *Snapshot) Empty(tenant string) bool {
 	return s.counts[tenant] == 0
 }
 
-// Path returns the precomputed deepest-first path for a node without allocating.
-// The returned slice is an immutable view and must not be modified by callers.
+// Path returns an independent copy of the precomputed path for a node.
 func (s *Snapshot) Path(tenant, nodeID string) ([]PathEntry, error) {
 	if s == nil {
 		return nil, fmt.Errorf("hierarchy snapshot is unavailable")
@@ -174,7 +174,7 @@ func (s *Snapshot) Path(tenant, nodeID string) ([]PathEntry, error) {
 	if !exists {
 		return nil, fmt.Errorf("tenant %q hierarchy node %q is unknown", tenant, nodeID)
 	}
-	return result, nil
+	return append([]PathEntry(nil), result...), nil
 }
 
 // Node returns a hierarchy node by tenant and identifier.

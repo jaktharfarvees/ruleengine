@@ -30,7 +30,7 @@ anchor therefore ranked identically and resolution reported an unresolved
 precedence tie.
 
 The effect: publishing version 1.1.0 of a rule made every decision for that
-rule fail closed with `PRECEDENCE_TIE_UNRESOLVED` until someone retired 1.0.0.
+rule surface `PRECEDENCE_CONFLICT` until someone retired 1.0.0.
 A test asserted this as intended behaviour.
 
 ### Where the collapse belongs

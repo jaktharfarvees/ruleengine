@@ -34,8 +34,8 @@ func TestSnapshotLookups(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(path) != 2 || path[0].NodeID != "child" || path[0].Depth != 1 || path[1].NodeID != "root" || path[1].Depth != 0 {
-		t.Fatalf("Path() = %#v, want child then root", path)
+	if len(path) != 2 || path[0].NodeID != "root" || path[0].Depth != 0 || path[1].NodeID != "child" || path[1].Depth != 1 {
+		t.Fatalf("Path() = %#v, want root then child", path)
 	}
 	if node, ok := snapshot.Node("T", "child"); !ok || node.Name != "Child" {
 		t.Fatalf("Node() = %#v, %v", node, ok)
@@ -199,16 +199,16 @@ func TestCacheSwap(t *testing.T) {
 	}
 }
 
-func TestPathHasZeroAllocations(t *testing.T) {
+func TestPathReturnsDefensiveCopy(t *testing.T) {
 	snapshot := mustSmallSnapshot(t)
-	allocations := testing.AllocsPerRun(1000, func() {
-		path, err := snapshot.Path("T", "child")
-		if err != nil || len(path) != 2 {
-			panic("unexpected path")
-		}
-	})
-	if allocations != 0 {
-		t.Fatalf("Path allocated %.2f times per call, want zero", allocations)
+	path, err := snapshot.Path("T", "child")
+	if err != nil || len(path) != 2 {
+		t.Fatalf("Path() = %#v, %v", path, err)
+	}
+	path[0].NodeID = "mutated"
+	again, err := snapshot.Path("T", "child")
+	if err != nil || again[0].NodeID == "mutated" {
+		t.Fatalf("caller mutation escaped into snapshot: %#v, %v", again, err)
 	}
 }
 

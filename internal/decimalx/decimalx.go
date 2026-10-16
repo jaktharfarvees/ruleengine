@@ -132,9 +132,7 @@ func (d Decimal) Quantize(scale int32) Decimal {
 	if scale < 0 {
 		scale = 0
 	}
-	text := d.StringFixed(scale)
-	value, _ := new(big.Rat).SetString(text)
-	return Decimal{value: value, scale: scale}
+	return Decimal{value: roundHalfEven(d.rat(), scale), scale: scale}
 }
 
 // StringFixed formats d at exactly scale decimal places.
@@ -142,7 +140,8 @@ func (d Decimal) StringFixed(scale int32) string {
 	if scale < 0 {
 		scale = 0
 	}
-	return d.rat().FloatString(int(scale))
+	rounded := roundHalfEven(d.rat(), scale)
+	return rounded.FloatString(int(scale))
 }
 
 // String formats d without insignificant trailing fractional zeros.
@@ -187,21 +186,77 @@ func (d *Decimal) UnmarshalJSON(data []byte) error {
 // currencies use two digits; known zero- and three-minor-unit currencies are
 // handled explicitly.
 func CurrencyScale(currency string) int32 {
-	switch strings.ToUpper(strings.TrimSpace(currency)) {
+	scale, _ := CurrencyScaleStrict(currency)
+	return scale
+}
+
+// CurrencyScaleStrict returns the ISO 4217 minor-unit scale and rejects an
+// unknown code. This is the API used on the decision path; CurrencyScale is
+// retained for source compatibility.
+func CurrencyScaleStrict(currency string) (int32, error) {
+	code := strings.ToUpper(strings.TrimSpace(currency))
+	if _, known := isoCurrencies[code]; !known {
+		return 0, fmt.Errorf("unknown ISO 4217 currency %q", currency)
+	}
+	switch code {
 	case "BHD", "IQD", "JOD", "KWD", "LYD", "OMR", "TND":
-		return 3
+		return 3, nil
 	case "CLF", "UYW":
-		return 4
+		return 4, nil
 	case "BIF", "CLP", "DJF", "GNF", "ISK", "JPY", "KMF", "KRW", "PYG", "RWF", "UGX", "UYI", "VND", "VUV", "XAF", "XOF", "XPF":
-		return 0
+		return 0, nil
 	default:
-		return 2
+		return 2, nil
 	}
 }
 
 // QuantizeCurrency rounds d to the declared minor-unit scale for currency.
 func QuantizeCurrency(d Decimal, currency string) Decimal {
 	return d.Quantize(CurrencyScale(currency))
+}
+
+// QuantizeCurrencyStrict rounds using the currency's declared ISO 4217 minor
+// unit and rejects unknown currency codes.
+func QuantizeCurrencyStrict(d Decimal, currency string) (Decimal, error) {
+	scale, err := CurrencyScaleStrict(currency)
+	if err != nil {
+		return Decimal{}, err
+	}
+	return d.Quantize(scale), nil
+}
+
+// isoCurrencies is the active currency-code allowlist accepted by the engine.
+// Special settlement and fund-unit codes with a defined minor unit are kept;
+// precious-metal and test codes are deliberately excluded from payroll use.
+var isoCurrencies = func() map[string]struct{} {
+	const codes = "AED AFN ALL AMD ANG AOA ARS AUD AWG AZN BAM BBD BDT BGN BHD BIF BMD BND BOB BOV BRL BSD BTN BWP BYN BZD CAD CDF CHE CHF CHW CLF CLP CNY COP COU CRC CUP CVE CZK DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS GIP GMD GNF GTQ GYD HKD HNL HTG HUF IDR ILS INR IQD IRR ISK JMD JOD JPY KES KGS KHR KMF KPW KRW KWD KYD KZT LAK LBP LKR LRD LSL LYD MAD MDL MGA MKD MMK MNT MOP MRU MUR MVR MWK MXN MXV MYR MZN NAD NGN NIO NOK NPR NZD OMR PAB PEN PGK PHP PKR PLN PYG QAR RON RSD RUB RWF SAR SBD SCR SDG SEK SGD SHP SLE SOS SRD SSP STN SVC SYP SZL THB TJS TMT TND TOP TRY TTD TWD TZS UAH UGX USD USN UYI UYU UYW UZS VED VES VND VUV WST XAF XCD XCG XOF XPF XSU XUA YER ZAR ZMW ZWG"
+	result := make(map[string]struct{})
+	for _, code := range strings.Fields(codes) {
+		result[code] = struct{}{}
+	}
+	return result
+}()
+
+func roundHalfEven(value *big.Rat, scale int32) *big.Rat {
+	if scale < 0 {
+		scale = 0
+	}
+	factor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(scale)), nil)
+	numerator := new(big.Int).Mul(value.Num(), factor)
+	negative := numerator.Sign() < 0
+	numerator.Abs(numerator)
+	denominator := new(big.Int).Abs(new(big.Int).Set(value.Denom()))
+	quotient, remainder := new(big.Int), new(big.Int)
+	quotient.QuoRem(numerator, denominator, remainder)
+	doubled := new(big.Int).Lsh(new(big.Int).Set(remainder), 1)
+	comparison := doubled.Cmp(denominator)
+	if comparison > 0 || (comparison == 0 && quotient.Bit(0) == 1) {
+		quotient.Add(quotient, big.NewInt(1))
+	}
+	if negative {
+		quotient.Neg(quotient)
+	}
+	return new(big.Rat).SetFrac(quotient, factor)
 }
 
 func (d Decimal) rat() *big.Rat {

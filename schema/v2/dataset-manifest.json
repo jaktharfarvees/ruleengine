@@ -5,24 +5,20 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "dataset",
-    "ownerService",
+    "datasetId",
+    "sourceService",
     "domain",
-    "grain",
-    "tenantScoped",
     "status",
-    "version",
-    "publishedAt",
     "maxWindowDays",
-    "aggregates",
+    "allowedAggregates",
     "columns"
   ],
   "properties": {
-    "dataset": {
+    "datasetId": {
       "type": "string",
       "minLength": 1
     },
-    "ownerService": {
+    "sourceService": {
       "type": "string",
       "minLength": 1
     },
@@ -66,7 +62,7 @@
       "minimum": 1,
       "description": "Optional per-dataset cap on rows scanned. The fact budget caps a whole request; this caps this dataset, and the lower of the two applies."
     },
-    "aggregates": {
+    "allowedAggregates": {
       "type": "array",
       "items": {
         "type": "string",
@@ -96,7 +92,7 @@
       "additionalProperties": false,
       "required": [
         "name",
-        "type",
+        "dataType",
         "filterable",
         "aggregatable",
         "windowable",
@@ -107,12 +103,13 @@
           "type": "string",
           "minLength": 1
         },
-        "type": {
+        "dataType": {
           "type": "string",
           "enum": [
             "string",
             "integer",
             "decimal",
+            "number",
             "boolean",
             "date",
             "datetime",
@@ -129,7 +126,7 @@
         "windowable": {
           "type": "boolean"
         },
-        "values": {
+        "allowedValues": {
           "type": "array",
           "items": {
             "type": "string"

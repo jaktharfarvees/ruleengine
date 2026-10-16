@@ -15,7 +15,7 @@ ruleplay -root testdata -request testdata/requests/leave-eligibility-br001.json
   decision:
     rule        urn:arrowhr:rule:leave:eligibility:min-service:v1 @ 1.1.0
     resolved at C002 (Company, order 1, depth 1)
-    path        BR001 -> D002 -> C002 -> G001 (deepest first)
+    path        G001 -> C002 -> D002 -> BR001 (root to leaf)
     reasons     OK
     result      eligible=true reasonCode=ELIGIBLE
     candidates:

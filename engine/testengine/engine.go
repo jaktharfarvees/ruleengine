@@ -11,6 +11,7 @@ import (
 
 	"github.com/arrowhr/ruleengine/engine"
 	"github.com/arrowhr/ruleengine/internal/decimalx"
+	"github.com/arrowhr/ruleengine/internal/expr"
 	"github.com/arrowhr/ruleengine/rule"
 )
 
@@ -30,9 +31,10 @@ func (*Engine) Capabilities() engine.Capabilities {
 	operators := append([]string(nil), parseOperators...)
 	sort.Strings(operators)
 	return engine.Capabilities{
-		HitPolicies: []rule.HitPolicy{rule.HitFirst},
+		HitPolicies: []rule.HitPolicy{rule.HitFirst, rule.HitPriority, rule.HitCollect},
 		Operators:   operators,
 		FieldRefs:   true,
+		Arithmetic:  true,
 		Trace:       true,
 		Decimal:     true,
 	}
@@ -41,7 +43,7 @@ func (*Engine) Capabilities() engine.Capabilities {
 // Evaluate applies first-hit decision-table semantics without I/O, clock
 // access, logging, or mutation of the authored logic and input maps.
 func (*Engine) Evaluate(ctx context.Context, logic rule.RuleLogic, input engine.Input) (engine.Output, error) {
-	if logic.HitPolicy != rule.HitFirst {
+	if logic.HitPolicy != rule.HitFirst && logic.HitPolicy != rule.HitPriority && logic.HitPolicy != rule.HitCollect {
 		return engine.Output{}, fmt.Errorf("testengine does not support hit policy %q", logic.HitPolicy)
 	}
 	if ctx == nil {
@@ -51,7 +53,8 @@ func (*Engine) Evaluate(ctx context.Context, logic rule.RuleLogic, input engine.
 	if input.Trace {
 		output.Trace = &engine.Trace{Rows: make([]engine.RowTrace, 0, len(logic.Rows))}
 	}
-	for _, row := range logic.Rows {
+	matchedRows := make([]int, 0, len(logic.Rows))
+	for index, row := range logic.Rows {
 		if err := ctx.Err(); err != nil {
 			return engine.Output{}, err
 		}
@@ -65,13 +68,36 @@ func (*Engine) Evaluate(ctx context.Context, logic rule.RuleLogic, input engine.
 		if !matched {
 			continue
 		}
+		matchedRows = append(matchedRows, index)
+		if logic.HitPolicy == rule.HitFirst {
+			break
+		}
+	}
+	if len(matchedRows) == 0 {
+		return output, nil
+	}
+	selected := matchedRows
+	if logic.HitPolicy == rule.HitFirst {
+		selected = matchedRows[:1]
+	} else if logic.HitPolicy == rule.HitPriority {
+		winner := matchedRows[0]
+		for _, index := range matchedRows[1:] {
+			if logic.Rows[index].Priority > logic.Rows[winner].Priority {
+				winner = index
+			}
+		}
+		selected = []int{winner}
+	}
+	for _, index := range selected {
+		row := logic.Rows[index]
 		result, err := resolveOutputs(row.Then, input.Facts)
 		if err != nil {
 			return engine.Output{}, fmt.Errorf("row %q: %w", row.ID, err)
 		}
-		output.Result = result
-		output.MatchedRows = []string{row.ID}
-		return output, nil
+		for key, value := range result {
+			output.Result[key] = value
+		}
+		output.MatchedRows = append(output.MatchedRows, row.ID)
 	}
 	return output, nil
 }
@@ -318,10 +344,25 @@ func resolveOutputs(authored map[string]any, facts map[string]any) (map[string]a
 	sort.Strings(keys)
 	for _, key := range keys {
 		value := authored[key]
-		if reference, ok := value.(string); ok && strings.HasPrefix(reference, "$") {
-			resolved, err := resolveOperand(reference, facts)
+		if source, ok := value.(string); ok && looksLikeOutputExpression(source) {
+			parsed, err := expr.Parse(source)
 			if err != nil {
 				return nil, fmt.Errorf("output %q: %w", key, err)
+			}
+			resolved, err := parsed.Eval(facts)
+			if err != nil {
+				return nil, fmt.Errorf("output %q: %w", key, err)
+			}
+			direct := strings.TrimSpace(source) == "$"+singleReference(parsed.References())
+			if !direct {
+				if currency, ok := facts["currency"].(string); ok {
+					if decimal, exact := decimalx.FromValue(resolved); exact {
+						resolved, err = decimalx.QuantizeCurrencyStrict(decimal, currency)
+						if err != nil {
+							return nil, fmt.Errorf("output %q: %w", key, err)
+						}
+					}
+				}
 			}
 			result[key] = clone(resolved)
 			continue
@@ -329,6 +370,31 @@ func resolveOutputs(authored map[string]any, facts map[string]any) (map[string]a
 		result[key] = clone(value)
 	}
 	return result, nil
+}
+
+func looksLikeOutputExpression(source string) bool {
+	trimmed := strings.TrimSpace(source)
+	if strings.Contains(trimmed, "$") || strings.HasPrefix(trimmed, "(") {
+		return true
+	}
+	for _, function := range expr.FunctionNames() {
+		if strings.HasPrefix(trimmed, function+"(") {
+			return true
+		}
+	}
+	for _, operator := range expr.OperatorSymbols() {
+		if strings.Contains(trimmed, " "+operator+" ") {
+			return true
+		}
+	}
+	return false
+}
+
+func singleReference(references []string) string {
+	if len(references) == 1 {
+		return references[0]
+	}
+	return ""
 }
 
 func clone(value any) any {

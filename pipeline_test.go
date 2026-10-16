@@ -2,6 +2,7 @@ package ruleengine_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -10,8 +11,10 @@ import (
 	"github.com/arrowhr/ruleengine/contextbuilder"
 	"github.com/arrowhr/ruleengine/dataset"
 	"github.com/arrowhr/ruleengine/fact"
+	"github.com/arrowhr/ruleengine/registry"
 	"github.com/arrowhr/ruleengine/rule"
 	"github.com/arrowhr/ruleengine/ruletest"
+	"github.com/arrowhr/ruleengine/schema"
 	"github.com/arrowhr/ruleengine/store"
 	"github.com/arrowhr/ruleengine/store/filestore"
 )
@@ -112,7 +115,7 @@ func TestPipelineEvaluatesTheRWBFixtures(t *testing.T) {
 	if eligible, ok := decision.Result["eligible"].(bool); !ok || !eligible {
 		t.Fatalf("result = %#v, want eligible true", decision.Result)
 	}
-	if decision.Result["reasonCode"] != "ELIGIBLE" {
+	if decision.Result["reasonCode"] != "OK" {
 		t.Fatalf("result reasonCode = %#v", decision.Result["reasonCode"])
 	}
 
@@ -121,8 +124,8 @@ func TestPipelineEvaluatesTheRWBFixtures(t *testing.T) {
 	if len(decision.SubjectPath) != 4 {
 		t.Fatalf("subject path = %+v, want four nodes", decision.SubjectPath)
 	}
-	if decision.SubjectPath[0].NodeID != branch || decision.SubjectPath[3].NodeID != "G001" {
-		t.Fatalf("subject path is not deepest-first: %+v", decision.SubjectPath)
+	if decision.SubjectPath[0].NodeID != "G001" || decision.SubjectPath[3].NodeID != branch {
+		t.Fatalf("subject path is not root-to-leaf: %+v", decision.SubjectPath)
 	}
 	if len(decision.Evaluated) != 2 {
 		t.Fatalf("evaluated = %+v, want both candidates", decision.Evaluated)
@@ -175,6 +178,24 @@ func TestPipelineEvaluatesTheRWBFixtures(t *testing.T) {
 	}
 	if len(decision.ReasonCodes) != 1 || decision.ReasonCodes[0] != ruleengine.ReasonOK {
 		t.Fatalf("reason codes = %v, want only OK", decision.ReasonCodes)
+	}
+	wire, err := json.Marshal(decision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := schema.Validate(schema.EvaluationResponse, wire); err != nil {
+		t.Fatalf("response violates the v2 schema: %v\n%s", err, wire)
+	}
+	var response map[string]any
+	if err := json.Unmarshal(wire, &response); err != nil {
+		t.Fatal(err)
+	}
+	if response["resolvedAt"] != "C002" {
+		t.Fatalf("wire resolvedAt = %#v, want node id string", response["resolvedAt"])
+	}
+	path := response["anchorPath"].([]any)
+	if path[0] != "G001" || path[3] != branch {
+		t.Fatalf("wire anchorPath is not root-to-leaf: %#v", path)
 	}
 }
 
@@ -330,8 +351,16 @@ func TestContextBuilderSuppliesFactsTheServiceComputes(t *testing.T) {
 	// declares serviceMonths, so that is what the pipeline asks for, and a
 	// service that computes tenure itself answers with it directly.
 	built := &recordingBuilder{values: contextbuilder.Static{"serviceMonths": 5}}
-	instance := engineOver(t, ruleengine.Config{
+	instance := engineOverBundle(t, ruleengine.Config{
 		Tenant: tenant, Domain: "leave", FactBudget: ruletest.Budget(),
+	}, func(bundle *store.Bundle) {
+		for index := range bundle.Fields {
+			if bundle.Fields[index].Name == "serviceMonths" {
+				bundle.Fields[index].FactSource = registry.FactSource{
+					Kind: registry.FactNative, BuilderFn: "serviceMonths",
+				}
+			}
+		}
 	}, ruleengine.WithContextBuilder(built))
 
 	// Nothing in the request context: the builder supplies serviceMonths, so
@@ -383,8 +412,16 @@ func TestContextBuilderSuppliesFactsTheServiceComputes(t *testing.T) {
 // TestContextBuilderFailureFailsClosed pins that a builder that cannot answer
 // holds the decision rather than letting it proceed on missing facts.
 func TestContextBuilderFailureFailsClosed(t *testing.T) {
-	instance := engineOver(t, ruleengine.Config{
+	instance := engineOverBundle(t, ruleengine.Config{
 		Tenant: tenant, Domain: "leave", FactBudget: ruletest.Budget(),
+	}, func(bundle *store.Bundle) {
+		for index := range bundle.Fields {
+			if bundle.Fields[index].Name == "serviceMonths" {
+				bundle.Fields[index].FactSource = registry.FactSource{
+					Kind: registry.FactNative, BuilderFn: "serviceMonths",
+				}
+			}
+		}
 	}, ruleengine.WithContextBuilder(&recordingBuilder{err: errors.New("employee service unavailable")}))
 
 	decision, err := instance.Evaluate(context.Background(),

@@ -12,6 +12,7 @@ import (
 
 // fetchNative calls a function the owning service registered.
 func (s *resolution) fetchNative(ctx context.Context, field string, source registry.FactSource) (any, Resolved, error) {
+	source = source.Canonical()
 	if source.NativeRef == "" {
 		return nil, Resolved{}, &Fault{Code: ReasonUnresolvable, Field: field,
 			Err: fmt.Errorf("field is declared as native but names no function")}
@@ -62,6 +63,7 @@ func (s *resolution) fetchNative(ctx context.Context, field string, source regis
 func (s *resolution) fetchDataset(
 	ctx context.Context, field string, definition registry.FieldDefinition, source registry.FactSource,
 ) (any, Resolved, error) {
+	source = source.Canonical()
 	if source.Dataset == "" {
 		return nil, Resolved{}, &Fault{Code: ReasonUnresolvable, Field: field,
 			Err: fmt.Errorf("field is declared as a dataset fact but names no dataset")}

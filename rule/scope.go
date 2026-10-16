@@ -8,7 +8,7 @@ type Scope struct {
 
 // Anchor identifies a hierarchy node or one employee exception.
 type Anchor struct {
-	Kind       AnchorKind `json:"kind"`
+	Kind       AnchorKind `json:"kind,omitempty"`
 	NodeID     string     `json:"nodeId,omitempty"`
 	EmployeeID string     `json:"employeeId,omitempty"`
 	Reason     string     `json:"reason,omitempty"`

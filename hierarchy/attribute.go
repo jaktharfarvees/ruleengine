@@ -9,7 +9,8 @@ func (s *Snapshot) ResolveAttribute(tenant, nodeID, attr string) (value, sourceN
 	if err != nil {
 		return "", "", false
 	}
-	for _, entry := range path {
+	for index := len(path) - 1; index >= 0; index-- {
+		entry := path[index]
 		node, exists := s.Node(tenant, entry.NodeID)
 		if !exists {
 			continue

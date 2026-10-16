@@ -1,6 +1,6 @@
 {
-  "dataset": "attendance.days",
-  "ownerService": "attendance-service",
+  "datasetId": "attendance.days",
+  "sourceService": "attendance-service",
   "domain": "attendance",
   "grain": "one row per employee per work day",
   "description": "One row for each work day an employee was rostered",
@@ -10,14 +10,14 @@
   "publishedAt": "2026-01-01T00:00:00Z",
   "maxWindowDays": 365,
   "rowLimit": 2000,
-  "aggregates": ["count", "sum", "max", "min", "avg", "streak", "latest", "exists"],
+  "allowedAggregates": ["count", "sum", "max", "min", "avg", "streak", "latest", "exists"],
   "columns": [
-    {"name": "employeeId", "type": "string", "filterable": true, "aggregatable": false, "windowable": false, "pii": true, "description": "Subject key"},
-    {"name": "workDate", "type": "date", "filterable": true, "aggregatable": false, "windowable": true, "pii": false},
-    {"name": "isLate", "type": "boolean", "filterable": true, "aggregatable": true, "windowable": false, "pii": false, "description": "Aggregatable so a streak can run over it"},
-    {"name": "lateMinutes", "type": "integer", "filterable": true, "aggregatable": true, "windowable": false, "pii": false},
-    {"name": "isAbsent", "type": "boolean", "filterable": true, "aggregatable": false, "windowable": false, "pii": false},
-    {"name": "workedHours", "type": "decimal", "filterable": false, "aggregatable": true, "windowable": false, "pii": false, "description": "Deliberately not filterable, for the guardrail test"},
-    {"name": "shiftCode", "type": "string", "filterable": true, "aggregatable": false, "windowable": false, "pii": false}
+    {"name": "employeeId", "dataType": "string", "filterable": true, "aggregatable": false, "windowable": false, "pii": true, "description": "Subject key"},
+    {"name": "workDate", "dataType": "date", "filterable": true, "aggregatable": false, "windowable": true, "pii": false},
+    {"name": "isLate", "dataType": "boolean", "filterable": true, "aggregatable": true, "windowable": false, "pii": false, "description": "Aggregatable so a streak can run over it"},
+    {"name": "lateMinutes", "dataType": "integer", "filterable": true, "aggregatable": true, "windowable": false, "pii": false},
+    {"name": "isAbsent", "dataType": "boolean", "filterable": true, "aggregatable": false, "windowable": false, "pii": false},
+    {"name": "workedHours", "dataType": "decimal", "filterable": false, "aggregatable": true, "windowable": false, "pii": false, "description": "Deliberately not filterable, for the guardrail test"},
+    {"name": "shiftCode", "dataType": "string", "filterable": true, "aggregatable": false, "windowable": false, "pii": false}
   ]
 }

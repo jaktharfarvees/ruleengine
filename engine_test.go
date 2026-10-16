@@ -10,7 +10,9 @@ import (
 	ruleengine "github.com/arrowhr/ruleengine"
 	"github.com/arrowhr/ruleengine/audit"
 	"github.com/arrowhr/ruleengine/fact"
+	"github.com/arrowhr/ruleengine/hierarchy"
 	"github.com/arrowhr/ruleengine/manifest"
+	"github.com/arrowhr/ruleengine/rule"
 	"github.com/arrowhr/ruleengine/ruletest"
 	"github.com/arrowhr/ruleengine/store"
 )
@@ -221,6 +223,85 @@ func TestReconcileFailureKeepsServing(t *testing.T) {
 	}
 }
 
+func TestRuntimeSwapNeverMixesRulesHierarchyAndFacts(t *testing.T) {
+	oldBundle := sharedBundle(t)
+	newBundle := sharedBundle(t)
+	for index := range newBundle.Hierarchy.Nodes {
+		node := &newBundle.Hierarchy.Nodes[index]
+		if node.NodeID == "C002" {
+			node.NodeID = "C009"
+		}
+		if node.ParentNodeID == "C002" {
+			node.ParentNodeID = "C009"
+		}
+	}
+	for index := range newBundle.Rules {
+		definition := &newBundle.Rules[index]
+		if definition.Name != "min-service" || definition.Version != "1.1.0" {
+			continue
+		}
+		definition.Anchor = rule.Anchor{Kind: rule.AnchorNode, NodeID: "C009"}
+		definition.Scope.Anchor = definition.Anchor
+		for row := range definition.Logic.Rows {
+			definition.Logic.Rows[row].Then["eligible"] = false
+			definition.Logic.Rows[row].Then["reasonCode"] = "NEW_SNAPSHOT"
+		}
+	}
+	instance, err := ruleengine.New(baseConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = instance.Close() })
+	if err := instance.ApplyBundle(oldBundle); err != nil {
+		t.Fatal(err)
+	}
+	request := leaveRequest("urn:arrowhr:rule:leave:eligibility:min-service:v1",
+		map[string]any{"joinDate": "2026-05-01"})
+
+	stop := make(chan struct{})
+	errorsFound := make(chan error, 32)
+	var readers sync.WaitGroup
+	for worker := 0; worker < 32; worker++ {
+		readers.Add(1)
+		go func() {
+			defer readers.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				decision, err := instance.Evaluate(context.Background(), request)
+				if err != nil || decision.Failed || decision.ResolvedAt == nil {
+					errorsFound <- errors.New("evaluation observed an incomplete runtime snapshot")
+					return
+				}
+				eligible, _ := decision.Result["eligible"].(bool)
+				oldState := decision.ResolvedAt.NodeID == "C002" && eligible
+				newState := decision.ResolvedAt.NodeID == "C009" && !eligible
+				if !oldState && !newState {
+					errorsFound <- errors.New("evaluation mixed old and new runtime artifacts")
+					return
+				}
+			}
+		}()
+	}
+	for iteration := 0; iteration < 50; iteration++ {
+		if err := instance.ApplyBundle(newBundle); err != nil {
+			t.Fatal(err)
+		}
+		if err := instance.ApplyBundle(oldBundle); err != nil {
+			t.Fatal(err)
+		}
+	}
+	close(stop)
+	readers.Wait()
+	close(errorsFound)
+	for err := range errorsFound {
+		t.Error(err)
+	}
+}
+
 // TestCloseDrainsTheAuditLogger pins that shutting an engine down flushes the
 // audit trail rather than discarding it.
 func TestCloseDrainsTheAuditLogger(t *testing.T) {
@@ -258,6 +339,31 @@ func TestCloseDrainsTheAuditLogger(t *testing.T) {
 	if len(record.ReasonCodes) != 1 || record.ReasonCodes[0] != "OK" {
 		t.Fatalf("record reason codes = %v", record.ReasonCodes)
 	}
+	if len(record.InputsHash) != 64 {
+		t.Fatalf("record input digest = %q, want SHA-256", record.InputsHash)
+	}
+}
+
+type failingOutbox struct{ err error }
+
+func (o failingOutbox) Append(context.Context, audit.Record) error { return o.err }
+
+func TestDurableAuditIsEnforced(t *testing.T) {
+	config := baseConfig()
+	config.RequireDurableAudit = true
+	if _, err := ruleengine.New(config); !errors.Is(err, ruleengine.ErrConfig) {
+		t.Fatalf("New without durable audit = %v, want ErrConfig", err)
+	}
+	logger, err := audit.NewOutboxLogger(failingOutbox{err: errors.New("outbox unavailable")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	instance := engineOver(t, config, ruleengine.WithDecisionLogger(logger))
+	decision, err := instance.Evaluate(context.Background(), leaveRequest(
+		"urn:arrowhr:rule:leave:eligibility:min-service:v1", map[string]any{"joinDate": "2026-05-01"}))
+	if err == nil || decision.DecisionID == "" {
+		t.Fatalf("durable audit failure = decision %#v, error %v", decision, err)
+	}
 }
 
 // TestManifestPinnedRunUsesTheFrozenVersion pins the batch path: a run
@@ -270,8 +376,9 @@ func TestManifestPinnedRunUsesTheFrozenVersion(t *testing.T) {
 		RunID: "leave-aug", Tenant: tenant, ValidAt: asOf, Status: manifest.StatusOpen, OpenedAt: asOf,
 		// Pinned to the group baseline even though C002's override is deeper
 		// and newer.
-		RulePins: map[string]string{key: "1.0.0"},
-		FactPins: map[string]string{},
+		RulePins:            map[string]string{key: "1.0.0"},
+		FactPins:            map[string]string{},
+		HierarchySnapshotID: "default",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +404,7 @@ func TestManifestPinnedRunUsesTheFrozenVersion(t *testing.T) {
 	// the current version: the run promised a frozen list.
 	if err := runs.Put(manifest.RunManifest{
 		RunID: "leave-sep", Tenant: tenant, ValidAt: asOf, Status: manifest.StatusOpen, OpenedAt: asOf,
-		RulePins: map[string]string{}, FactPins: map[string]string{},
+		RulePins: map[string]string{}, FactPins: map[string]string{}, HierarchySnapshotID: "default",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -308,6 +415,56 @@ func TestManifestPinnedRunUsesTheFrozenVersion(t *testing.T) {
 	}
 	if !decision.Failed || !hasReason(decision, ruleengine.ReasonPinnedVersionUnavailable) {
 		t.Fatalf("an unpinned rule in a run = %v, want a pin failure", decision.ReasonCodes)
+	}
+}
+
+func TestManifestPinnedRunUsesHistoricalHierarchy(t *testing.T) {
+	bundle := sharedBundle(t)
+	oldHierarchy := bundle.Hierarchy
+	oldHierarchy.SnapshotID = "org-before-move"
+	oldHierarchy.ValidFrom = time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	cutover := asOf.Add(24 * time.Hour)
+	oldHierarchy.ValidTo = &cutover
+	newHierarchy := store.HierarchyBundle{
+		SnapshotID: "org-after-move", ValidFrom: cutover,
+		Types: append([]hierarchy.Type(nil), oldHierarchy.Types...),
+		Nodes: append([]hierarchy.Node(nil), oldHierarchy.Nodes...),
+	}
+	for index := range newHierarchy.Nodes {
+		if newHierarchy.Nodes[index].NodeID == "C002" {
+			newHierarchy.Nodes[index].NodeID = "C009"
+		}
+		if newHierarchy.Nodes[index].ParentNodeID == "C002" {
+			newHierarchy.Nodes[index].ParentNodeID = "C009"
+		}
+	}
+	bundle.Hierarchies = []store.HierarchyBundle{oldHierarchy, newHierarchy}
+	runs := manifest.NewInMemoryStore()
+	key := "urn:arrowhr:rule:leave:eligibility:min-service:v1"
+	if err := runs.Put(manifest.RunManifest{
+		RunID: "historical-org", Tenant: tenant, ValidAt: asOf,
+		RulePins: map[string]string{key: "1.1.0"}, FactPins: map[string]string{},
+		HierarchySnapshotID: "org-before-move", Status: manifest.StatusOpen, OpenedAt: asOf,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	instance, err := ruleengine.New(baseConfig(), ruleengine.WithManifestStore(runs))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = instance.Close() })
+	if err := instance.ApplyBundle(bundle); err != nil {
+		t.Fatal(err)
+	}
+	request := leaveRequest(key, map[string]any{"joinDate": "2026-05-01"})
+	request.AsOf = cutover.Add(30 * 24 * time.Hour)
+	request.RunID = "historical-org"
+	decision, err := instance.Evaluate(context.Background(), request)
+	if err != nil || decision.Failed {
+		t.Fatalf("historical run = %v, %v", decision.ReasonCodes, err)
+	}
+	if decision.HierarchySnapshotID != "org-before-move" || decision.ResolvedAtNode != "C002" || !decision.ValidAt.Equal(asOf) {
+		t.Fatalf("historical run used snapshot %q, anchor %q, validAt %s", decision.HierarchySnapshotID, decision.ResolvedAtNode, decision.ValidAt)
 	}
 }
 

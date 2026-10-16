@@ -209,9 +209,9 @@ func hintFor(code ruleengine.ReasonCode) string {
 	switch code {
 	case ruleengine.ReasonNoRuleResolved:
 		return "no rule's anchor is on the subject's path. Check the anchor node IDs against the path above, and that the rule is active and effective at validAt"
-	case ruleengine.ReasonSubjectNodeUnresolvable:
+	case ruleengine.ReasonHierarchyNotConfigured:
 		return "the subject's nodeId is missing, unknown in this tenant's hierarchy, or inactive"
-	case ruleengine.ReasonPrecedenceTieUnresolved:
+	case ruleengine.ReasonPrecedenceConflict:
 		return "two rules are equally specific at the same anchor. Give one a tieBreakPriority, or narrow one's filters"
 	case ruleengine.ReasonFactUnresolvable:
 		return "a declared input could not be resolved. A passed field must be in the request context; a dataset field needs -rows"

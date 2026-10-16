@@ -1,6 +1,6 @@
 /coverage.out
-*-coverage
-*coverage.out
+/*-coverage.out
+/coverage-*.out
 /critical-coverage.out
 /bench-current.txt
 /.cache/
@@ -8,3 +8,13 @@
 /rulelint
 /ruleplay
 *.test
+*.exe
+*.prof
+*.pprof
+*.log
+.DS_Store
+Thumbs.db
+/.idea/
+/.vscode/
+/.env
+.env.local

@@ -9,25 +9,26 @@ import (
 
 func TestReasonCodeCatalogue(t *testing.T) {
 	nonFatal := map[ReasonCode]bool{
-		ReasonOK: true, ReasonCrossTenantRuleDropped: true, ReasonFieldDeprecated: true,
+		ReasonOK: true, ReasonDefaultApplied: true, ReasonPrecedenceConflict: true,
+		ReasonCrossTenantRuleDropped: true, ReasonFieldDeprecated: true,
 		ReasonFactShadowedAttribute: true, ReasonDatasetDeprecated: true,
 		ReasonPIIColumnInFilter: true, ReasonCacheStale: true,
 	}
 	all := []ReasonCode{
 		ReasonOK, ReasonSchemaInvalid, ReasonHierarchyUnavailable,
-		ReasonSubjectNodeUnresolvable, ReasonNoRuleResolved,
-		ReasonPrecedenceTieUnresolved, ReasonCrossTenantRuleDropped,
+		ReasonHierarchyNotConfigured, ReasonNoRuleResolved, ReasonDefaultApplied,
+		ReasonPrecedenceConflict, ReasonCrossTenantRuleDropped,
 		ReasonPinnedVersionUnavailable, ReasonFieldNotRegistered,
 		ReasonFieldDeprecated, ReasonFieldTypeMismatch, ReasonFactUnresolvable,
 		ReasonFactBudgetExceeded, ReasonFactTimeout, ReasonFactRawQueryRejected,
 		ReasonFactColumnNotAllowed, ReasonFactAggregateUnsupported,
 		ReasonFactWindowTooWide, ReasonFactDerivedCycle,
-		ReasonFactShadowedAttribute, ReasonDatasetNotPublished,
+		ReasonFactShadowedAttribute, ReasonDatasetNotPublished, ReasonDatasetRecipeInvalid,
 		ReasonDatasetDeprecated, ReasonPIIColumnInFilter, ReasonEngineError,
 		ReasonOutputContractViolation, ReasonCacheStale,
 	}
-	if len(all) != 26 {
-		t.Fatalf("catalogue contains %d codes, want 26", len(all))
+	if len(all) != 28 {
+		t.Fatalf("catalogue contains %d codes, want 28", len(all))
 	}
 	for _, code := range all {
 		if !code.Valid() || code.String() == "" {
@@ -104,8 +105,8 @@ func TestStructuredError(t *testing.T) {
 // the operations table or the boundary check wrong.
 func TestReasonCodesMatchValid(t *testing.T) {
 	codes := ReasonCodes()
-	if len(codes) != 26 {
-		t.Fatalf("catalogue holds %d codes, want 26", len(codes))
+	if len(codes) != 28 {
+		t.Fatalf("catalogue holds %d codes, want 28", len(codes))
 	}
 	seen := make(map[ReasonCode]struct{}, len(codes))
 	for _, code := range codes {

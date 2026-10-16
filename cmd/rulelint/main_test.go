@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,14 +62,55 @@ func TestValidFixturesPass(t *testing.T) {
 	}
 }
 
-// TestWarnsAboutTheDeliberateTiePair pins the warning worth never ignoring:
-// two equally specific rules at one anchor would fail every matching decision
-// closed, and publish time is where that has to be caught.
-func TestWarnsAboutTheDeliberateTiePair(t *testing.T) {
-	report := lint(fixtureRoot, nil)
-	joined := strings.Join(report.warnings, "\n")
-	if !strings.Contains(joined, "equally specific") || !strings.Contains(joined, "fail closed") {
-		t.Fatalf("the tie pair was not reported: %v", report.warnings)
+// TestRejectsAnAmbiguousTieAtPublication pins the production contract: the
+// runtime has a deterministic safety fallback, but ambiguous rules do not pass
+// the publication gate.
+func TestRejectsAnAmbiguousTieAtPublication(t *testing.T) {
+	directory := t.TempDir()
+	paths := make([]string, 0, 2)
+	for _, fixture := range []string{"tie-a.json", "tie-b.json"} {
+		data, err := os.ReadFile(filepath.Join(fixtureRoot, "rules", "conflict", fixture))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var document map[string]any
+		if err := json.Unmarshal(data, &document); err != nil {
+			t.Fatal(err)
+		}
+		delete(document, "tieBreakPriority")
+		body, err := json.Marshal(document)
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(directory, fixture)
+		if err := os.WriteFile(path, body, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		paths = append(paths, path)
+	}
+	report := lint(fixtureRoot, paths)
+	joined := strings.Join(report.problems, "\n")
+	if !strings.Contains(joined, "ambiguous") || !strings.Contains(joined, "publication is refused") {
+		t.Fatalf("the ambiguous pair was not rejected: %v", report.problems)
+	}
+
+	data, err := os.ReadFile(paths[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var disjoint map[string]any
+	if err := json.Unmarshal(data, &disjoint); err != nil {
+		t.Fatal(err)
+	}
+	filter := disjoint["attributeFilters"].([]any)[0].(map[string]any)
+	filter["attribute"] = "employeeGroup"
+	filter["value"] = "Operations"
+	data, _ = json.Marshal(disjoint)
+	if err := os.WriteFile(paths[1], data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if report := lint(fixtureRoot, paths); len(report.problems) != 0 {
+		t.Fatalf("mutually exclusive filters were rejected: %v", report.problems)
 	}
 }
 
@@ -148,10 +190,10 @@ func TestRejectsRulesTheRegistryDoesNotSupport(t *testing.T) {
 		return path
 	}
 	registryPath := write("registry.json", `{"fields":[
-		{"name":"serviceMonths","domain":"leave","dataType":"integer","pii":false,
-		 "ownerService":"leave","status":"active","role":"input","effective":{}},
+		 {"name":"serviceMonths","domain":"leave","dataType":"integer","pii":false,
+		 "sourceService":"leave","status":"active","role":"input","effective":{}},
 		{"name":"eligible","domain":"leave","dataType":"boolean","pii":false,
-		 "ownerService":"leave","status":"active","role":"output","effective":{}}
+		 "sourceService":"leave","status":"active","role":"output","effective":{}}
 	]}`)
 
 	rule := func(inputs, outputs string) string {
@@ -159,7 +201,7 @@ func TestRejectsRulesTheRegistryDoesNotSupport(t *testing.T) {
 			"ruleKey":"urn:arrowhr:rule:leave:eligibility:min-service:v1",
 			"domain":"leave","ruleSet":"eligibility","name":"min-service",
 			"version":"1.0.0","changeType":"MAJOR","status":"active","tenant":"RWB",
-			"scope":{"anchor":{"kind":"node","nodeId":"G001"}},
+			"anchor":{"nodeId":"G001"},
 			"effective":{"validFrom":"2026-01-01T00:00:00Z"},
 			"declaredInputs":` + inputs + `,"declaredOutputs":` + outputs + `,
 			"decisionType":"leave-eligibility",

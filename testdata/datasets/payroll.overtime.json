@@ -1,6 +1,6 @@
 {
-  "dataset": "payroll.overtime",
-  "ownerService": "payroll-service",
+  "datasetId": "payroll.overtime",
+  "sourceService": "payroll-service",
   "domain": "payroll",
   "grain": "one row per employee per payroll period per overtime category",
   "description": "Overtime recorded against a pay period, deliberately offering no streak aggregate",
@@ -10,12 +10,12 @@
   "publishedAt": "2026-01-01T00:00:00Z",
   "maxWindowDays": 400,
   "rowLimit": 1000,
-  "aggregates": ["count", "sum", "max", "min", "avg", "latest"],
+  "allowedAggregates": ["count", "sum", "max", "min", "avg", "latest"],
   "columns": [
-    {"name": "employeeId", "type": "string", "filterable": true, "aggregatable": false, "windowable": false, "pii": true, "description": "Subject key"},
-    {"name": "periodStart", "type": "date", "filterable": true, "aggregatable": false, "windowable": true, "pii": false},
-    {"name": "otCategory", "type": "enum", "filterable": true, "aggregatable": false, "windowable": false, "pii": false, "values": ["NORMAL", "HOLIDAY", "REST_DAY"]},
-    {"name": "otHours", "type": "decimal", "filterable": false, "aggregatable": true, "windowable": false, "pii": false},
-    {"name": "approved", "type": "boolean", "filterable": true, "aggregatable": false, "windowable": false, "pii": false}
+    {"name": "employeeId", "dataType": "string", "filterable": true, "aggregatable": false, "windowable": false, "pii": true, "description": "Subject key"},
+    {"name": "periodStart", "dataType": "date", "filterable": true, "aggregatable": false, "windowable": true, "pii": false},
+    {"name": "otCategory", "dataType": "enum", "filterable": true, "aggregatable": false, "windowable": false, "pii": false, "allowedValues": ["NORMAL", "HOLIDAY", "REST_DAY"]},
+    {"name": "otHours", "dataType": "decimal", "filterable": false, "aggregatable": true, "windowable": false, "pii": false},
+    {"name": "approved", "dataType": "boolean", "filterable": true, "aggregatable": false, "windowable": false, "pii": false}
   ]
 }

@@ -8,10 +8,7 @@
   "changeType": "MAJOR",
   "status": "active",
   "tenant": "RWB",
-  "scope": {
-    "anchor": {"kind": "node", "nodeId": "BR001"},
-    "filters": []
-  },
+  "anchor": {"nodeId": "BR001"},
   "effective": {"validFrom": "2026-01-01T00:00:00Z"},
   "declaredInputs": ["countConsecutiveLate", "avgLateMinutes"],
   "declaredOutputs": ["penalty", "halfDayNoPay"],

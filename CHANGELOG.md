@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Verification hardening
+
+- Migrated v2 JSON contracts to `anchor`, `attributeFilters`, `datasetId`,
+  `sourceService`, `allowedAggregates`, `dataType`, `allowedValues`, `filter`,
+  `column`, and `builderFn`; added the missing tenant-scoped `RuleCatalog`.
+- Added tenant-authorized exact rule-set defaults. No domain is globally
+  allowed to default, and absence of a catalog policy remains fail-closed.
+- Added effective-dated hierarchy histories and run-manifest hierarchy pins,
+  root-to-leaf response paths, defensive snapshot copies, and one atomic
+  rules/registry/manifests/hierarchy/fact-resolver runtime swap.
+- Publication lint now rejects equal-rank ambiguity; runtime applies a stable
+  deterministic fallback and emits `PRECEDENCE_CONFLICT`.
+- Added a durable audit-outbox contract, required-audit configuration, input
+  digests, and PII-safe operational logging.
+- Monetary quantization now uses exact half-even rounding and rejects unknown
+  currency codes on the decision path.
+- Expanded `engine/testengine` to first, priority, collect, references, and
+  arithmetic so every golden fixture runs on both implementations.
+- Added the locked v2 additive-only schema compatibility CI gate.
+
 ### Added
 
 #### Developer tools, the example and the test kit
@@ -38,8 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fact de-duplication across decision points, `Ready`, `Start`, `Close` and
   `Stats`. Every fail-closed path carries a reason code from the catalogue, and
   every metric and span the observability list names is emitted.
-- `audit`: the decision record, the non-blocking async logger that drops with a
-  counter rather than holding up a decision, and an slog sink for development.
+- `audit`: the decision record, a bounded best-effort async logger, a durable
+  outbox adapter, and a PII-safe slog sink for development.
 - `authz`: hierarchy subtree grants, `IsWithinAuthority` and `EffectiveNodes`,
   so the Rule Service and Rule Studio reach the same answer from one place.
 - `contextbuilder`: the interface for facts a service computes itself, with a
@@ -90,18 +110,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Core request, decision, rule, trace, and explanation transport types.
 - Complete reason-code catalogue and structured operational error taxonomy.
 - Authored rule validation with hierarchy anchors and closed filter operators.
-- Seven embedded versioned boundary schemas and offline schema validation.
+- Eight embedded versioned schemas and offline schema validation.
 - Immutable multi-tenant hierarchy snapshots with load-time graph validation.
-- Precomputed deepest-first node paths and nearest-ancestor attribute resolution.
+- Precomputed root-to-leaf node paths and nearest-ancestor attribute resolution.
 - Hierarchy-derived node and employee-exception precedence.
 - Lock-free atomic hierarchy cache and shared RWB hierarchy fixtures.
 - Pure deterministic rule resolution with hierarchy-derived precedence.
 - Closed scope-filter matching with human-readable failure explanations.
-- Fail-closed unresolved-rule and precedence-tie results.
+- Fail-closed unresolved-rule results and deterministic conflict fallback.
 - RT01 through RT14, randomized resolution properties, and resolver benchmarks.
 - Immutable field registry with strict input, output, enum, and filter validation.
 - Pure decision-engine interface, trace model, and honest capability reporting.
-- Reference first-hit test engine with comparisons and field references.
+- Reference decision-table engine with all hit policies, comparisons, field
+  references, and arithmetic.
 - Exact decimal and currency-scale helpers with shared registry and golden fixtures.
 - Production decision-table engine with first, priority, and collect policies.
 - Closed, allowlisted expression parser with exact arithmetic and date functions.

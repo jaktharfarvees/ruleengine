@@ -55,8 +55,11 @@ func (r *Registry) Field(name string) (FieldDefinition, bool) {
 }
 
 func validateDefinition(field FieldDefinition) error {
-	if field.Name == "" || field.Domain == "" || field.OwnerService == "" || field.Status == "" {
-		return fmt.Errorf("name, domain, ownerService, and status are required")
+	if field.SourceService == "" {
+		field.SourceService = field.OwnerService
+	}
+	if field.Name == "" || field.Domain == "" || field.SourceService == "" || field.Status == "" {
+		return fmt.Errorf("name, domain, sourceService, and status are required")
 	}
 	if !field.DataType.Valid() {
 		return fmt.Errorf("field %q has unsupported data type %q", field.Name, field.DataType)
@@ -87,10 +90,52 @@ func validateDefinition(field FieldDefinition) error {
 	if field.FactSource.Kind != "" && !field.FactSource.Kind.Valid() {
 		return fmt.Errorf("field %q has unsupported fact-source kind %q", field.Name, field.FactSource.Kind)
 	}
+	if field.FactSource.Kind != "" {
+		if err := validateFactSourceShape(field.FactSource.Canonical()); err != nil {
+			return fmt.Errorf("field %q factSource: %w", field.Name, err)
+		}
+	}
+	return nil
+}
+
+func validateFactSourceShape(source FactSource) error {
+	switch source.Kind {
+	case FactPassed:
+		if source.DatasetID != "" || source.Expression != "" || source.BuilderFn != "" || source.Aggregate != nil || source.Window != nil || len(source.Filter) != 0 {
+			return fmt.Errorf("passed source cannot declare a recipe")
+		}
+	case FactDerived:
+		if source.Expression == "" {
+			return fmt.Errorf("derived source requires expression")
+		}
+		if source.DatasetID != "" || source.BuilderFn != "" || source.Aggregate != nil || source.Window != nil || len(source.Filter) != 0 {
+			return fmt.Errorf("derived source contains fields for another kind")
+		}
+	case FactNative:
+		if source.BuilderFn == "" {
+			return fmt.Errorf("native source requires builderFn")
+		}
+		if source.DatasetID != "" || source.Expression != "" || source.Aggregate != nil || source.Window != nil || len(source.Filter) != 0 {
+			return fmt.Errorf("native source contains fields for another kind")
+		}
+	case FactDataset:
+		if source.DatasetID == "" || source.Aggregate == nil || !source.Aggregate.Fn.Valid() {
+			return fmt.Errorf("dataset source requires datasetId and a valid aggregate")
+		}
+		if source.Expression != "" || source.BuilderFn != "" {
+			return fmt.Errorf("dataset source contains fields for another kind")
+		}
+	}
 	return nil
 }
 
 func cloneField(field FieldDefinition) FieldDefinition {
+	if field.SourceService == "" {
+		field.SourceService = field.OwnerService
+	}
+	if field.OwnerService == "" {
+		field.OwnerService = field.SourceService
+	}
 	field.AllowedValues = append([]string(nil), field.AllowedValues...)
 	field.FactSource = cloneFactSource(field.FactSource)
 	if field.Effective.ValidTo != nil {
@@ -101,6 +146,11 @@ func cloneField(field FieldDefinition) FieldDefinition {
 }
 
 func cloneFactSource(source FactSource) FactSource {
+	source = source.Canonical()
+	source.Filter = append([]rule.FilterCondition(nil), source.Filter...)
+	for index := range source.Filter {
+		source.Filter[index].Value = cloneValue(source.Filter[index].Value)
+	}
 	source.Filters = append([]rule.FilterCondition(nil), source.Filters...)
 	for index := range source.Filters {
 		source.Filters[index].Value = cloneValue(source.Filters[index].Value)
@@ -173,7 +223,7 @@ func cloneReflect(reflected reflect.Value) reflect.Value {
 // Valid reports whether d belongs to the closed data-type set.
 func (d DataType) Valid() bool {
 	switch d {
-	case DataString, DataInteger, DataDecimal, DataBoolean, DataDate, DataDateTime, DataEnum, DataMoney:
+	case DataString, DataInteger, DataDecimal, DataNumber, DataBoolean, DataDate, DataDateTime, DataEnum, DataMoney:
 		return true
 	default:
 		return false

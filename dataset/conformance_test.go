@@ -113,7 +113,7 @@ func TestConformanceSuiteRefusesBadInput(t *testing.T) {
 	}
 
 	broken := validManifest()
-	broken.Grain = ""
+	broken.OwnerService, broken.SourceService = "", ""
 	recorder = &recordingTB{TB: t}
 	ConformanceSuite(recorder, func() Executor { return &compliantExecutor{manifest: broken} }, broken)
 	if !recorder.failed || !strings.Contains(recorder.message, "itself invalid") {
@@ -201,7 +201,7 @@ type brokenManifestExecutor struct{ manifest Manifest }
 
 func (b *brokenManifestExecutor) Manifests() []Manifest {
 	broken := b.manifest
-	broken.Grain = ""
+	broken.OwnerService, broken.SourceService = "", ""
 	return []Manifest{broken}
 }
 func (b *brokenManifestExecutor) Run(context.Context, Query) (Result, error) {

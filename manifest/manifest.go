@@ -21,14 +21,15 @@ const (
 // RunManifest freezes rule and fact-source versions for one tenant and
 // business time. The maps are immutable after insertion into Store.
 type RunManifest struct {
-	RunID    string            `json:"runId"`
-	Tenant   string            `json:"tenant"`
-	ValidAt  time.Time         `json:"validAt"`
-	RulePins map[string]string `json:"rulePins"`
-	FactPins map[string]string `json:"factPins"`
-	Status   Status            `json:"status"`
-	OpenedAt time.Time         `json:"openedAt"`
-	ClosedAt *time.Time        `json:"closedAt,omitempty"`
+	RunID               string            `json:"runId"`
+	Tenant              string            `json:"tenant"`
+	ValidAt             time.Time         `json:"validAt"`
+	RulePins            map[string]string `json:"rulePins"`
+	FactPins            map[string]string `json:"factPins"`
+	HierarchySnapshotID string            `json:"hierarchySnapshotId"`
+	Status              Status            `json:"status"`
+	OpenedAt            time.Time         `json:"openedAt"`
+	ClosedAt            *time.Time        `json:"closedAt,omitempty"`
 }
 
 // Validate checks identity, lifecycle, and pin completeness.
@@ -39,8 +40,8 @@ func (m RunManifest) Validate() error {
 	if m.ValidAt.IsZero() || m.OpenedAt.IsZero() {
 		return fmt.Errorf("validAt and openedAt are required")
 	}
-	if m.RulePins == nil || m.FactPins == nil {
-		return fmt.Errorf("rulePins and factPins are required")
+	if m.RulePins == nil || m.FactPins == nil || m.HierarchySnapshotID == "" {
+		return fmt.Errorf("rulePins, factPins, and hierarchySnapshotId are required")
 	}
 	for rawKey, version := range m.RulePins {
 		if _, err := rule.RuleKey(rawKey).Parse(); err != nil {

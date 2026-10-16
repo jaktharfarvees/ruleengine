@@ -191,18 +191,15 @@ func TestRowLimitBreachAcrossSeveralFacts(t *testing.T) {
 	}
 }
 
-// TestDeclarationShapeFailures covers a declaration that names a kind but not
-// the thing that kind needs. Each is a publish-time mistake that must fail
-// loudly at evaluation rather than resolve to nothing.
+// TestDeclarationShapeFailures covers the resolver's defense for a declaration
+// with no kind. Kind-specific incomplete recipes are rejected earlier by the
+// field registry and are covered by registry tests.
 func TestDeclarationShapeFailures(t *testing.T) {
 	tests := []struct {
 		name   string
 		source registry.FactSource
 		code   string
 	}{
-		{"derived with no expression", registry.FactSource{Kind: registry.FactDerived}, fact.ReasonUnresolvable},
-		{"native with no reference", registry.FactSource{Kind: registry.FactNative}, fact.ReasonUnresolvable},
-		{"dataset with no dataset", registry.FactSource{Kind: registry.FactDataset}, fact.ReasonUnresolvable},
 		// A kind outside the closed set is refused by the registry before a
 		// resolver ever sees it, so the resolver's own check for one is
 		// defence in depth rather than a reachable path.
@@ -332,6 +329,128 @@ func TestCachedEmptyResultUsesOnEmpty(t *testing.T) {
 		if resolution.Values["casualLeaveTakenThisYear"] != "0" {
 			t.Fatalf("point %d got %#v, want the declared onEmpty", point, resolution.Values["casualLeaveTakenThisYear"])
 		}
+	}
+}
+
+func TestNativeEmptyErrorAndLateReturnFailClosed(t *testing.T) {
+	newNativeResolver := func(t *testing.T, source registry.FactSource, function fact.Func, budget fact.Budget) *fact.Resolver {
+		t.Helper()
+		fields := mustRegistry(t, registry.FieldDefinition{
+			Name: "nativeValue", Domain: "leave", DataType: registry.DataInteger,
+			OwnerService: "leave-service", Status: "active", Role: registry.RoleInput,
+			FactSource: source,
+		})
+		natives := fact.NewNativeRegistry()
+		if err := natives.Register(source.NativeRef, function); err != nil {
+			t.Fatal(err)
+		}
+		resolver, err := fact.NewResolver(fields, nil, nil, natives, budget, telemetry.Nop())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resolver
+	}
+
+	budget := ruletest.Budget()
+	for _, test := range []struct {
+		name     string
+		source   registry.FactSource
+		function fact.Func
+		want     any
+		code     string
+	}{
+		{
+			name: "declared fallback", source: registry.FactSource{Kind: registry.FactNative, NativeRef: "native.empty", OnEmpty: 7},
+			function: func(context.Context, fact.Params) (any, error) { return nil, nil }, want: 7,
+		},
+		{
+			name: "missing fallback", source: registry.FactSource{Kind: registry.FactNative, NativeRef: "native.missing"},
+			function: func(context.Context, fact.Params) (any, error) { return nil, nil }, code: fact.ReasonUnresolvable,
+		},
+		{
+			name: "builder error", source: registry.FactSource{Kind: registry.FactNative, NativeRef: "native.error"},
+			function: func(context.Context, fact.Params) (any, error) { return nil, errors.New("lookup failed") }, code: fact.ReasonUnresolvable,
+		},
+		{
+			name: "value after deadline", source: registry.FactSource{Kind: registry.FactNative, NativeRef: "native.late"},
+			function: func(ctx context.Context, _ fact.Params) (any, error) { <-ctx.Done(); return 1, nil }, code: fact.ReasonTimeout,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			caseBudget := budget
+			if test.name == "value after deadline" {
+				caseBudget.PerFactTimeout = time.Millisecond
+			}
+			resolver := newNativeResolver(t, test.source, test.function, caseBudget)
+			result, err := resolver.Resolve(context.Background(), []string{"nativeValue"}, nil, params(), nil)
+			if test.code != "" {
+				assertCode(t, err, test.code)
+				return
+			}
+			if err != nil || result.Values["nativeValue"] != test.want {
+				t.Fatalf("Resolve() = %+v, %v; want %v", result, err, test.want)
+			}
+		})
+	}
+}
+
+type scriptedExecutor struct {
+	manifest dataset.Manifest
+	result   dataset.Result
+	err      error
+	late     bool
+}
+
+func (e scriptedExecutor) Manifests() []dataset.Manifest { return []dataset.Manifest{e.manifest} }
+
+func (e scriptedExecutor) Run(ctx context.Context, _ dataset.Query) (dataset.Result, error) {
+	if e.late {
+		<-ctx.Done()
+		return e.result, nil
+	}
+	return e.result, e.err
+}
+
+func TestDatasetExecutorMisbehaviorFailsClosed(t *testing.T) {
+	manifest := mustManifest(t, "attendance.days")
+	fields := mustRegistry(t, countField("one", 1))
+	budget := ruletest.Budget()
+	for _, test := range []struct {
+		name     string
+		executor scriptedExecutor
+		code     string
+	}{
+		{
+			name: "reports too many rows",
+			executor: scriptedExecutor{manifest: manifest, result: dataset.Result{
+				Value: 1, RowsScanned: budget.MaxRowsScanned + 1,
+			}},
+			code: fact.ReasonBudgetExceeded,
+		},
+		{
+			name:     "returns an error",
+			executor: scriptedExecutor{manifest: manifest, err: errors.New("database unavailable")},
+			code:     fact.ReasonUnresolvable,
+		},
+		{
+			name:     "returns after deadline",
+			executor: scriptedExecutor{manifest: manifest, result: dataset.Result{Value: 1}, late: true},
+			code:     fact.ReasonTimeout,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			caseBudget := budget
+			if test.executor.late {
+				caseBudget.PerFactTimeout = time.Millisecond
+			}
+			resolver, err := fact.NewResolver(fields, map[string]dataset.Manifest{manifest.DatasetID: manifest},
+				test.executor, nil, caseBudget, telemetry.Nop())
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = resolver.Resolve(context.Background(), []string{"one"}, nil, params(), nil)
+			assertCode(t, err, test.code)
+		})
 	}
 }
 

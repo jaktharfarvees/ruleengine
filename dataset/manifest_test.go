@@ -1,12 +1,43 @@
 package dataset
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/arrowhr/ruleengine/registry"
 )
+
+func TestManifestJSONUsesOnlyV2Names(t *testing.T) {
+	original := validManifest()
+	payload, err := json.Marshal(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(payload)
+	for _, want := range []string{`"datasetId":"attendance.days"`, `"sourceService":"attendance-service"`, `"allowedAggregates"`, `"dataType"`, `"allowedValues"`} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("manifest JSON %s does not contain %s", text, want)
+		}
+	}
+	for _, retired := range []string{`"dataset":`, `"ownerService":`, `"aggregates":`, `"type":`, `"values":`} {
+		if strings.Contains(text, retired) {
+			t.Fatalf("manifest JSON contains retired key %s: %s", retired, text)
+		}
+	}
+
+	var decoded Manifest
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.DatasetID != original.Dataset || decoded.Dataset != original.Dataset ||
+		decoded.SourceService != original.OwnerService || decoded.OwnerService != original.OwnerService ||
+		len(decoded.AllowedAggregates) != len(original.Aggregates) ||
+		decoded.Columns[6].DataType != registry.DataEnum || len(decoded.Columns[6].AllowedValues) != 2 {
+		t.Fatalf("v2 round trip did not synchronize compatibility aliases: %+v", decoded)
+	}
+}
 
 func validManifest() Manifest {
 	return Manifest{
@@ -38,11 +69,8 @@ func TestManifestValidate(t *testing.T) {
 		want    string
 	}{
 		{"no dataset", func(m *Manifest) { m.Dataset = "" }, "dataset identifier"},
-		{"no owner", func(m *Manifest) { m.OwnerService = "" }, "owner service"},
-		{"no domain", func(m *Manifest) { m.Domain = "" }, "owner service"},
-		{"no grain", func(m *Manifest) { m.Grain = "" }, "grain"},
-		{"not tenant scoped", func(m *Manifest) { m.TenantScoped = false }, "tenant scoped"},
-		{"no version", func(m *Manifest) { m.Version = "" }, "version"},
+		{"no source service", func(m *Manifest) { m.OwnerService, m.SourceService = "", "" }, "source service"},
+		{"no domain", func(m *Manifest) { m.Domain = "" }, "source service"},
 		{"no status", func(m *Manifest) { m.Status = "" }, "status"},
 		{"no window maximum", func(m *Manifest) { m.MaxWindowDays = 0 }, "maxWindowDays"},
 		{"negative row limit", func(m *Manifest) { m.RowLimit = -1 }, "rowLimit"},

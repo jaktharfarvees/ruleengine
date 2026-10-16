@@ -37,7 +37,7 @@ func TestExplainsAnRT01Outcome(t *testing.T) {
 	for _, want := range []string{
 		"1.1.0",                         // the version that won
 		"resolved at C002",              // the anchor it won at
-		"BR001 -> D002 -> C002 -> G001", // the subject's path, deepest first
+		"G001 -> C002 -> D002 -> BR001", // the subject's path, root to leaf
 		"WINNER",                        // which candidate won
 		"eliminated",                    // and that the other did not
 		"Company(1) outranks Group(0)",  // why, in the tenant's own level names
@@ -97,7 +97,7 @@ func TestFailedDecisionIsDistinguishedFromAToolFailure(t *testing.T) {
 		t.Fatalf("run = %v, want ErrDecisionFailed", runErr)
 	}
 	// It still explains itself, and says what to check first.
-	if !strings.Contains(out.String(), "SUBJECT_NODE_UNRESOLVABLE") {
+	if !strings.Contains(out.String(), "HIERARCHY_NOT_CONFIGURED") {
 		t.Fatalf("the failure was not explained:\n%s", out.String())
 	}
 	if !strings.Contains(out.String(), "unknown in this tenant") {

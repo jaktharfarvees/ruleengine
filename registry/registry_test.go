@@ -22,7 +22,7 @@ func TestNewRegistryAndImmutableLookup(t *testing.T) {
 		Name: "employeeGroup", Domain: "leave", DataType: DataEnum,
 		AllowedValues: allowed, OwnerService: "employee", Status: "active", Role: RoleSubjectAttribute,
 		FactSource: FactSource{
-			Kind: FactDataset, Filters: []rule.FilterCondition{{Attribute: "status", Op: rule.FilterIn, Value: filterValues}},
+			Kind: FactDataset, DatasetID: "leave.items", Filters: []rule.FilterCondition{{Attribute: "status", Op: rule.FilterIn, Value: filterValues}},
 			Window: window, Aggregate: aggregate, OnEmpty: onEmpty,
 		},
 		Effective: rule.Effective{ValidFrom: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ValidTo: &validTo},
@@ -77,6 +77,9 @@ func TestNewRegistryRejectsInvalidDefinitions(t *testing.T) {
 		{"enum duplicate", []FieldDefinition{mutate(valid, func(field *FieldDefinition) { field.DataType = DataEnum; field.AllowedValues = []string{"A", "A"} })}},
 		{"values on string", []FieldDefinition{mutate(valid, func(field *FieldDefinition) { field.AllowedValues = []string{"A"} })}},
 		{"bad fact kind", []FieldDefinition{mutate(valid, func(field *FieldDefinition) { field.FactSource.Kind = "remote" })}},
+		{"derived without expression", []FieldDefinition{mutate(valid, func(field *FieldDefinition) { field.FactSource.Kind = FactDerived })}},
+		{"native without builder", []FieldDefinition{mutate(valid, func(field *FieldDefinition) { field.FactSource.Kind = FactNative })}},
+		{"dataset without recipe", []FieldDefinition{mutate(valid, func(field *FieldDefinition) { field.FactSource.Kind = FactDataset })}},
 		{"bad effective interval", []FieldDefinition{mutate(valid, func(field *FieldDefinition) {
 			end := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 			field.Effective.ValidTo = &end

@@ -4,13 +4,14 @@
   "title": "Run Manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["runId", "tenant", "validAt", "rulePins", "factPins", "status", "openedAt"],
+  "required": ["runId", "tenant", "validAt", "rulePins", "factPins", "hierarchySnapshotId", "status", "openedAt"],
   "properties": {
     "runId": {"type": "string", "minLength": 1},
     "tenant": {"type": "string", "minLength": 1},
     "validAt": {"type": "string", "format": "date-time"},
     "rulePins": {"type": "object"},
     "factPins": {"type": "object"},
+    "hierarchySnapshotId": {"type": "string", "minLength": 1},
     "status": {"type": "string", "minLength": 1},
     "openedAt": {"type": "string", "format": "date-time"},
     "closedAt": {"type": "string", "format": "date-time"}

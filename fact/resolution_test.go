@@ -688,7 +688,7 @@ func TestResolverRejectsInconsistentManifests(t *testing.T) {
 		t.Fatal("a miskeyed manifest was accepted")
 	}
 	broken := good
-	broken.Grain = ""
+	broken.OwnerService, broken.SourceService = "", ""
 	if _, err := fact.NewResolver(fields, map[string]dataset.Manifest{"attendance.days": broken},
 		nil, nil, ruletest.Budget(), nil); err == nil {
 		t.Fatal("an invalid manifest was accepted")

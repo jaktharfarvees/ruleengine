@@ -42,8 +42,8 @@ func TestLoadRules(t *testing.T) {
 		t.Fatalf("payroll group has %d fixtures, want 2", len(group))
 	}
 	// LoadRules orders by file name so a table test over a group is stable.
-	if group[0].Scope.Anchor.Kind != rule.AnchorEmployee || group[1].Scope.Anchor.Kind != rule.AnchorNode {
-		t.Fatalf("group is not in file-name order: %q then %q", group[0].Scope.Anchor.Kind, group[1].Scope.Anchor.Kind)
+	if group[0].EffectiveAnchor().NodeID != "BR001" || group[1].EffectiveAnchor().NodeID != "G001" {
+		t.Fatalf("group is not in file-name order: %q then %q", group[0].EffectiveAnchor().NodeID, group[1].EffectiveAnchor().NodeID)
 	}
 	for _, name := range []string{"", "..", "/payroll", "payroll/nested"} {
 		if _, err := ruletest.LoadRules(name); err == nil {

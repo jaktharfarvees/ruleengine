@@ -11,8 +11,9 @@ func TestStoreKeepsPinsImmutableAndClosesRun(t *testing.T) {
 	opened := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
 	manifest := RunManifest{
 		RunID: "payroll-aug", Tenant: "T1", ValidAt: opened, Status: StatusOpen, OpenedAt: opened,
-		RulePins: map[string]string{"urn:arrowhr:rule:payroll:statutory:tax:v1": "1.2.0"},
-		FactPins: map[string]string{"taxableIncome": "3"},
+		RulePins:            map[string]string{"urn:arrowhr:rule:payroll:statutory:tax:v1": "1.2.0"},
+		FactPins:            map[string]string{"taxableIncome": "3"},
+		HierarchySnapshotID: "default",
 	}
 	store := NewInMemoryStore()
 	if err := store.Put(manifest); err != nil {
@@ -55,7 +56,7 @@ func TestStoreKeepsPinsImmutableAndClosesRun(t *testing.T) {
 
 func TestManifestValidation(t *testing.T) {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	valid := RunManifest{RunID: "r", Tenant: "T", ValidAt: now, RulePins: map[string]string{}, FactPins: map[string]string{}, Status: StatusOpen, OpenedAt: now}
+	valid := RunManifest{RunID: "r", Tenant: "T", ValidAt: now, RulePins: map[string]string{}, FactPins: map[string]string{}, HierarchySnapshotID: "default", Status: StatusOpen, OpenedAt: now}
 	tests := []struct {
 		name   string
 		mutate func(*RunManifest)
@@ -81,7 +82,7 @@ func TestManifestValidation(t *testing.T) {
 func TestStoreFailures(t *testing.T) {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	store := NewInMemoryStore()
-	base := RunManifest{RunID: "r", Tenant: "T", ValidAt: now, OpenedAt: now, Status: StatusOpen, RulePins: map[string]string{}, FactPins: map[string]string{}}
+	base := RunManifest{RunID: "r", Tenant: "T", ValidAt: now, OpenedAt: now, Status: StatusOpen, RulePins: map[string]string{}, FactPins: map[string]string{}, HierarchySnapshotID: "default"}
 	if err := store.Put(base); err != nil {
 		t.Fatal(err)
 	}

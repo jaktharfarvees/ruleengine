@@ -90,7 +90,7 @@ func TestRT06FiltersNarrowButNeverPromote(t *testing.T) {
 	}
 }
 
-func TestRT07OverlappingFiltersTieAndFailClosed(t *testing.T) {
+func TestRT07OverlappingFiltersUseDeterministicRuntimeFallback(t *testing.T) {
 	finance := nodeRule("finance-filter", "D003")
 	finance.Scope.Filters = []rule.FilterCondition{filter("employeeGroup", rule.FilterEquals, "Finance")}
 	permanent := nodeRule("worker-filter", "D003")
@@ -339,8 +339,8 @@ func TestPropertyPrecedenceMonotonicity(t *testing.T) {
 	}
 	random := rand.New(rand.NewSource(301))
 	for iteration := 0; iteration < 1000; iteration++ {
-		deeperIndex := random.Intn(len(path) - 1)
-		shallowerIndex := deeperIndex + 1 + random.Intn(len(path)-deeperIndex-1)
+		shallowerIndex := random.Intn(len(path) - 1)
+		deeperIndex := shallowerIndex + 1 + random.Intn(len(path)-shallowerIndex-1)
 		deeper := nodeRule(fmt.Sprintf("deep-%d", iteration), path[deeperIndex].NodeID)
 		shallower := nodeRule(fmt.Sprintf("shallow-%d", iteration), path[shallowerIndex].NodeID)
 		definitions := []*rule.RuleDefinition{deeper, shallower}
@@ -502,7 +502,7 @@ func assertFailed(t testing.TB, result resolve.Result, reason string) {
 
 func assertTie(t testing.TB, result resolve.Result, definitions ...*rule.RuleDefinition) {
 	t.Helper()
-	if !result.FailClosed || result.Winner != nil || result.Tie == nil || result.ReasonCode != "PRECEDENCE_TIE_UNRESOLVED" {
+	if result.FailClosed || result.Winner == nil || result.Tie == nil || result.ReasonCode != "OK" {
 		t.Fatalf("unexpected tie result: %#v", result)
 	}
 	if len(result.Tie.Candidates) != len(definitions) {

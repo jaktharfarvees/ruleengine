@@ -104,8 +104,8 @@ authored in that service's repository and published like any other artifact.
 
 ```json
 {
-  "dataset": "leave.balances",
-  "ownerService": "leave-service",
+	"datasetId": "leave.balances",
+  "sourceService": "leave-service",
   "domain": "leave",
   "grain": "one row per employee per leave type per balance snapshot date",
   "tenantScoped": true,
@@ -114,13 +114,13 @@ authored in that service's repository and published like any other artifact.
   "publishedAt": "2026-01-01T00:00:00Z",
   "maxWindowDays": 366,
   "rowLimit": 1000,
-  "aggregates": ["latest", "sum", "avg", "min", "max"],
+	"allowedAggregates": ["latest", "sum", "avg", "min", "max"],
   "columns": [
-    { "name": "employeeId",  "type": "string",  "filterable": true,  "aggregatable": false, "windowable": false, "pii": true },
-    { "name": "leaveType",   "type": "enum",    "filterable": true,  "aggregatable": false, "windowable": false, "pii": false,
-      "values": ["CASUAL", "ANNUAL", "SICK", "UNPAID"] },
-    { "name": "balanceDays", "type": "decimal", "filterable": false, "aggregatable": true,  "windowable": false, "pii": false },
-    { "name": "asOfDate",    "type": "date",    "filterable": true,  "aggregatable": false, "windowable": true,  "pii": false }
+    { "name": "employeeId",  "dataType": "string",  "filterable": true,  "aggregatable": false, "windowable": false, "pii": true },
+    { "name": "leaveType",   "dataType": "enum",    "filterable": true,  "aggregatable": false, "windowable": false, "pii": false,
+      "allowedValues": ["CASUAL", "ANNUAL", "SICK", "UNPAID"] },
+    { "name": "balanceDays", "dataType": "decimal", "filterable": false, "aggregatable": true,  "windowable": false, "pii": false },
+    { "name": "asOfDate",    "dataType": "date",    "filterable": true,  "aggregatable": false, "windowable": true,  "pii": false }
   ]
 }
 ```
@@ -131,10 +131,8 @@ Things worth saying plainly:
   not `filterable` cannot be filtered on however sensible that would be,
   because you have not promised an index for it. Marking everything true is how
   a table scan reaches production.
-- **`grain` is required** because an aggregate is uninterpretable without it.
-  "Sum of days" over an unknown grain is not a number anybody can act on.
-- **`tenantScoped` must be true.** A dataset that is not tenant-scoped cannot
-  be made safe by an injected predicate, so it is refused outright.
+- **`grain` and `tenantScoped` are optional descriptive metadata in v2.** They
+  do not weaken execution: `Compile` always injects the tenant predicate.
 - **There is no tenant column in the manifest.** It is implicit, which is
   precisely why an author cannot filter on it. See G9.
 - **`maxWindowDays` and `rowLimit` are your protection**, not the caller's.

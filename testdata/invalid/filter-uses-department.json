@@ -7,10 +7,8 @@
   "changeType": "MAJOR",
   "status": "active",
   "tenant": "RWB",
-  "scope": {
-    "anchor": {"kind": "node", "nodeId": "G001"},
-    "filters": [{"attribute": "department", "op": "equals", "value": "Engineering"}]
-  },
+  "anchor": {"nodeId": "G001"},
+  "attributeFilters": [{"attribute": "department", "op": "equals", "value": "Engineering"}],
   "effective": {"validFrom": "2026-01-01T00:00:00Z"},
   "declaredInputs": [],
   "declaredOutputs": ["eligible"],

@@ -29,19 +29,21 @@ type catalogEntry struct {
 // Filters are canonicalised rather than compared in authored order: reordering
 // a filter list changes nothing about which subjects a rule covers, so it must
 // not create a second rule.
-func scopeIdentity(scope rule.Scope) string {
+func scopeIdentity(definition rule.RuleDefinition) string {
+	anchor := definition.EffectiveAnchor()
+	attributeFilters := definition.EffectiveAttributeFilters()
 	var builder strings.Builder
 	builder.Grow(64)
-	builder.WriteString(string(scope.Anchor.Kind))
+	builder.WriteString(string(anchor.Kind))
 	builder.WriteByte('\x1f')
-	builder.WriteString(scope.Anchor.NodeID)
+	builder.WriteString(anchor.NodeID)
 	builder.WriteByte('\x1f')
-	builder.WriteString(scope.Anchor.EmployeeID)
+	builder.WriteString(anchor.EmployeeID)
 	builder.WriteByte('\x1f')
 	// Anchor.Reason is deliberately excluded: it is documentation for an
 	// employee exception, not part of which subjects the rule covers.
-	filters := make([]string, 0, len(scope.Filters))
-	for _, filter := range scope.Filters {
+	filters := make([]string, 0, len(attributeFilters))
+	for _, filter := range attributeFilters {
 		filters = append(filters, fmt.Sprintf("%s\x1d%s\x1d%v", filter.Attribute, filter.Op, filter.Value))
 	}
 	sort.Strings(filters)

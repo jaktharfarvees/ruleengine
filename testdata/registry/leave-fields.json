@@ -5,7 +5,7 @@
       "domain": "leave",
       "dataType": "string",
       "pii": true,
-      "ownerService": "employee-service",
+      "sourceService": "employee-service",
       "status": "active",
       "role": "input",
       "factSource": {
@@ -25,7 +25,7 @@
         "United Kingdom"
       ],
       "pii": false,
-      "ownerService": "org-service",
+      "sourceService": "org-service",
       "status": "active",
       "role": "subjectAttribute",
       "effective": {}
@@ -40,7 +40,7 @@
         "Operations"
       ],
       "pii": false,
-      "ownerService": "employee-service",
+      "sourceService": "employee-service",
       "status": "active",
       "role": "subjectAttribute",
       "effective": {}
@@ -50,7 +50,7 @@
       "domain": "leave",
       "dataType": "integer",
       "pii": false,
-      "ownerService": "employee-service",
+      "sourceService": "employee-service",
       "status": "active",
       "role": "subjectAttribute",
       "effective": {}
@@ -65,7 +65,7 @@
         "INTERN"
       ],
       "pii": false,
-      "ownerService": "employee-service",
+      "sourceService": "employee-service",
       "status": "active",
       "role": "subjectAttribute",
       "effective": {}
@@ -76,7 +76,7 @@
       "dataType": "decimal",
       "unit": "days",
       "pii": false,
-      "ownerService": "leave-service",
+      "sourceService": "leave-service",
       "status": "active",
       "role": "input",
       "factSource": {
@@ -97,7 +97,7 @@
         "UNPAID"
       ],
       "pii": false,
-      "ownerService": "leave-service",
+      "sourceService": "leave-service",
       "status": "active",
       "role": "subjectAttribute",
       "effective": {}
@@ -108,7 +108,7 @@
       "dataType": "integer",
       "unit": "months",
       "pii": false,
-      "ownerService": "employee-service",
+      "sourceService": "employee-service",
       "status": "active",
       "role": "input",
       "factSource": {
@@ -124,7 +124,7 @@
       "domain": "leave",
       "dataType": "date",
       "pii": false,
-      "ownerService": "employee-service",
+      "sourceService": "employee-service",
       "status": "active",
       "role": "input",
       "factSource": {
@@ -140,13 +140,13 @@
       "dataType": "decimal",
       "unit": "days",
       "pii": false,
-      "ownerService": "leave-service",
+      "sourceService": "leave-service",
       "status": "active",
       "role": "input",
       "factSource": {
         "kind": "dataset",
-        "dataset": "leave.balances",
-        "filters": [
+        "datasetId": "leave.balances",
+        "filter": [
           {
             "attribute": "employeeId",
             "op": "equals",
@@ -165,7 +165,7 @@
         },
         "aggregate": {
           "fn": "latest",
-          "on": "balanceDays",
+          "column": "balanceDays",
           "unit": "days"
         },
         "onEmpty": "0",
@@ -181,12 +181,12 @@
       "dataType": "decimal",
       "unit": "days",
       "pii": false,
-      "ownerService": "leave-service",
+      "sourceService": "leave-service",
       "status": "active",
       "role": "input",
       "factSource": {
         "kind": "native",
-        "nativeRef": "leave.accruedBalanceToDate",
+        "builderFn": "leave.accruedBalanceToDate",
         "version": "1"
       },
       "factSourceVersion": "1",
@@ -198,13 +198,13 @@
       "dataType": "decimal",
       "unit": "days",
       "pii": false,
-      "ownerService": "leave-service",
+      "sourceService": "leave-service",
       "status": "active",
       "role": "input",
       "factSource": {
         "kind": "dataset",
-        "dataset": "leave.applications",
-        "filters": [
+        "datasetId": "leave.applications",
+        "filter": [
           {
             "attribute": "employeeId",
             "op": "equals",
@@ -228,7 +228,7 @@
         },
         "aggregate": {
           "fn": "sum",
-          "on": "days",
+          "column": "days",
           "unit": "days"
         },
         "onEmpty": "0",
@@ -244,13 +244,13 @@
       "dataType": "integer",
       "unit": "days",
       "pii": false,
-      "ownerService": "leave-service",
+      "sourceService": "leave-service",
       "status": "active",
       "role": "input",
       "factSource": {
         "kind": "dataset",
-        "dataset": "leave.applications",
-        "filters": [
+        "datasetId": "leave.applications",
+        "filter": [
           {
             "attribute": "employeeId",
             "op": "equals",
@@ -274,7 +274,7 @@
         },
         "aggregate": {
           "fn": "streak",
-          "on": "days",
+          "column": "days",
           "unit": "applications"
         },
         "onEmpty": 0,
@@ -289,7 +289,7 @@
       "domain": "leave",
       "dataType": "string",
       "pii": false,
-      "ownerService": "leave-service",
+      "sourceService": "leave-service",
       "status": "active",
       "role": "input",
       "effective": {}
@@ -299,7 +299,7 @@
       "domain": "leave",
       "dataType": "boolean",
       "pii": false,
-      "ownerService": "leave-service",
+      "sourceService": "leave-service",
       "status": "active",
       "role": "output",
       "effective": {}
@@ -309,7 +309,7 @@
       "domain": "leave",
       "dataType": "string",
       "pii": false,
-      "ownerService": "leave-service",
+      "sourceService": "leave-service",
       "status": "active",
       "role": "output",
       "effective": {}
@@ -319,7 +319,7 @@
       "domain": "leave",
       "dataType": "boolean",
       "pii": false,
-      "ownerService": "leave-service",
+      "sourceService": "leave-service",
       "status": "active",
       "role": "output",
       "effective": {}

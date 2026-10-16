@@ -147,8 +147,8 @@ func TestCapabilitiesAreHonestAndIndependent(t *testing.T) {
 		t.Fatalf("Name() = %q", implementation.Name())
 	}
 	capabilities := implementation.Capabilities()
-	if !reflect.DeepEqual(capabilities.HitPolicies, []rule.HitPolicy{rule.HitFirst}) ||
-		!capabilities.FieldRefs || capabilities.Arithmetic || !capabilities.Trace || !capabilities.Decimal {
+	if !reflect.DeepEqual(capabilities.HitPolicies, []rule.HitPolicy{rule.HitFirst, rule.HitPriority, rule.HitCollect}) ||
+		!capabilities.FieldRefs || !capabilities.Arithmetic || !capabilities.Trace || !capabilities.Decimal {
 		t.Fatalf("Capabilities() = %#v", capabilities)
 	}
 	capabilities.Operators[0] = "mutated"
@@ -167,7 +167,7 @@ func TestEvaluationErrors(t *testing.T) {
 		input engine.Input
 		match string
 	}{
-		{"unsupported policy", context.Background(), rule.RuleLogic{HitPolicy: rule.HitCollect}, engine.Input{}, "hit policy"},
+		{"unsupported policy", context.Background(), rule.RuleLogic{HitPolicy: rule.HitPolicy("unique")}, engine.Input{}, "hit policy"},
 		{"cancelled", cancelled, rule.RuleLogic{HitPolicy: rule.HitFirst, Rows: []rule.DecisionRow{{ID: "row"}}}, engine.Input{}, "context canceled"},
 		{"missing condition fact", context.Background(), oneCondition("missing", "== x"), engine.Input{}, "unavailable"},
 		{"bad expression", context.Background(), oneCondition("value", "contains x"), engine.Input{Facts: map[string]any{"value": "x"}}, "unsupported expression"},

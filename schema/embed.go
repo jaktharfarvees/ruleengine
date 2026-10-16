@@ -24,6 +24,8 @@ const (
 	RuleDefinition = "rule-definition.json"
 	// FieldRegistry is the field registry schema name.
 	FieldRegistry = "field-registry.json"
+	// RuleCatalog is the rule catalog schema name.
+	RuleCatalog = "rule-catalog.json"
 	// DatasetManifest is the dataset manifest schema name.
 	DatasetManifest = "dataset-manifest.json"
 	// OrgHierarchy is the organization hierarchy schema name.

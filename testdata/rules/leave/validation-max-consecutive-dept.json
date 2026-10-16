@@ -8,12 +8,10 @@
   "changeType": "MAJOR",
   "status": "active",
   "tenant": "RWB",
-  "scope": {
-    "anchor": {"kind": "node", "nodeId": "D002"},
-    "filters": [
-      {"attribute": "employeeGroup", "op": "in", "value": ["Development team"]}
-    ]
-  },
+  "anchor": {"nodeId": "D002"},
+  "attributeFilters": [
+    {"attribute": "employeeGroup", "op": "in", "value": ["Development team"]}
+  ],
   "effective": {"validFrom": "2026-01-01T00:00:00Z"},
   "declaredInputs": ["requestedDays"],
   "declaredOutputs": ["allowed", "reasonCode"],

@@ -12,9 +12,9 @@
     "decisionType": {"type": "string"},
     "result": {"type": "object"},
     "reasonCodes": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-    "resolvedAt": {"type": "object"},
-    "subjectPath": {"type": "array", "items": {"type": "object"}},
-    "evaluated": {"type": "array", "items": {"type": "object"}},
+    "resolvedAt": {"type": "string", "minLength": 1},
+    "anchorPath": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "evaluated": {"type": "array", "items": {"$ref": "#/$defs/evaluated"}},
     "factsResolved": {"type": "array", "items": {"type": "object"}},
     "resolvedAttributes": {"type": "object"},
     "obligations": {"type": "array", "items": {"type": "string"}},
@@ -23,10 +23,30 @@
     "asOf": {"type": "string", "format": "date-time"},
     "validAt": {"type": "string", "format": "date-time"},
     "runId": {"type": "string"},
+    "hierarchySnapshotId": {"type": "string"},
     "correlationId": {"type": "string"},
     "traceparent": {"type": "string"},
     "trace": {"type": "object"},
     "libVersion": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "evaluated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ruleKey", "ruleVersion", "order", "depth", "onPath", "filtersMatched", "winner"],
+      "properties": {
+        "ruleKey": {"type": "string"},
+        "ruleVersion": {"type": "string"},
+        "anchorNodeId": {"type": "string"},
+        "order": {"type": "integer"},
+        "depth": {"type": "integer"},
+        "onPath": {"type": "boolean"},
+        "filtersMatched": {"type": "boolean"},
+        "winner": {"type": "boolean"},
+        "eliminatedBy": {"type": "string"},
+        "reason": {"type": "string"}
+      }
+    }
   }
 }
 

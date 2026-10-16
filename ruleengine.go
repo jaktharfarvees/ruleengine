@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/arrowhr/ruleengine/audit"
 	"github.com/arrowhr/ruleengine/fact"
 	"github.com/arrowhr/ruleengine/rule"
 	"github.com/arrowhr/ruleengine/store"
@@ -26,18 +28,26 @@ type Resolver interface {
 // Construct one per service and keep it. Close it on shutdown so the
 // background reconcile stops and buffered audit records are drained.
 type Engine struct {
-	config    Config
-	options   *options
-	cache     *store.Cache
-	versions  *store.VersionResolver
-	resolverM sync.RWMutex
-	facts     *fact.Resolver
+	config   Config
+	options  *options
+	cache    *store.Cache
+	versions *store.VersionResolver
+	runtime  atomic.Pointer[runtimeSnapshot]
 
 	reconcileOnce sync.Once
 	stop          chan struct{}
 	stopped       chan struct{}
 	closeOnce     sync.Once
 	closeErr      error
+}
+
+// runtimeSnapshot is the single immutable view an evaluation uses from start
+// to finish. Publishing the store snapshot and its fact resolver together
+// prevents a reload from combining rules from one bundle with registry or
+// dataset metadata from another.
+type runtimeSnapshot struct {
+	store *store.Snapshot
+	facts *fact.Resolver
 }
 
 // New builds an engine from a configuration and the collaborators a service
@@ -52,6 +62,11 @@ func New(config Config, opts ...Option) (*Engine, error) {
 	for _, option := range opts {
 		if option != nil {
 			option(resolved)
+		}
+	}
+	if config.RequireDurableAudit {
+		if _, durable := resolved.decisionLogger.(audit.DurableDecisionLogger); !durable {
+			return nil, fmt.Errorf("%w: durable audit is required but the decision logger is best-effort", ErrConfig)
 		}
 	}
 	if config.Validation == ValidationOff {
@@ -155,16 +170,15 @@ func (e *Engine) rebuildFactResolver() error {
 	if err != nil {
 		return err
 	}
-	e.resolverM.Lock()
-	e.facts = resolver
-	e.resolverM.Unlock()
+	e.runtime.Store(&runtimeSnapshot{store: snapshot, facts: resolver})
 	return nil
 }
 
-func (e *Engine) factResolver() *fact.Resolver {
-	e.resolverM.RLock()
-	defer e.resolverM.RUnlock()
-	return e.facts
+func (e *Engine) runtimeSnapshot() *runtimeSnapshot {
+	if e == nil {
+		return nil
+	}
+	return e.runtime.Load()
 }
 
 // Ready reports whether the engine can decide anything yet.
@@ -176,22 +190,25 @@ func (e *Engine) Ready() error {
 	if e == nil {
 		return ErrNotReady
 	}
-	snapshot := e.cache.Load()
-	if snapshot == nil {
+	runtime := e.runtimeSnapshot()
+	if runtime == nil || runtime.store == nil || runtime.facts == nil {
 		return fmt.Errorf("%w: no rule snapshot has been published", ErrNotReady)
 	}
+	snapshot := runtime.store
 	hierarchySnapshot := snapshot.Hierarchy()
 	if hierarchySnapshot == nil || hierarchySnapshot.Empty(e.config.Tenant) {
 		return fmt.Errorf("%w: %w for tenant", ErrNotReady, ErrHierarchyUnavailable)
-	}
-	if e.factResolver() == nil {
-		return fmt.Errorf("%w: no fact resolver is built", ErrNotReady)
 	}
 	return nil
 }
 
 // Stats reports what the engine currently holds, for an operational endpoint.
-func (e *Engine) Stats() store.Stats { return e.cache.Stats() }
+func (e *Engine) Stats() store.Stats {
+	if runtime := e.runtimeSnapshot(); runtime != nil && runtime.store != nil {
+		return runtime.store.Stats()
+	}
+	return store.Stats{}
+}
 
 // Close stops background reconciliation and releases the audit logger. It is
 // safe to call more than once.
@@ -338,18 +355,33 @@ func (r Results) All() []Decision {
 // session is one request's evaluation state: the fact session that makes
 // de-duplication span every point, and the span that covers the whole call.
 type session struct {
-	engine *Engine
-	facts  *fact.Session
-	span   telemetry.Span
+	engine   *Engine
+	snapshot *store.Snapshot
+	facts    *fact.Session
+	span     telemetry.Span
 }
 
 func (e *Engine) newSession(ctx context.Context) *session {
 	_, span := e.options.tracer.Start(ctx, telemetry.SpanEvaluate)
 	current := &session{engine: e, span: span}
-	if resolver := e.factResolver(); resolver != nil {
-		current.facts = resolver.NewSession()
+	if runtime := e.runtimeSnapshot(); runtime != nil {
+		current.snapshot = runtime.store
+		if runtime.facts != nil {
+			current.facts = runtime.facts.NewSession()
+		}
 	}
 	return current
+}
+
+// refresh adopts the latest fully-built runtime after an explicit loader
+// retry. It never observes the cache's intermediate state.
+func (s *session) refresh() {
+	if runtime := s.engine.runtimeSnapshot(); runtime != nil {
+		s.snapshot = runtime.store
+		if runtime.facts != nil {
+			s.facts = runtime.facts.NewSession()
+		}
+	}
 }
 
 func (s *session) finish() { s.span.End() }

@@ -194,6 +194,60 @@ func TestCacheSwapWith64Readers(t *testing.T) {
 	}
 }
 
+func TestHistoricalHierarchySelectionAndOverlapRejection(t *testing.T) {
+	february := january.AddDate(0, 1, 0)
+	oldTo := february
+	oldHierarchy := HierarchyBundle{
+		SnapshotID: "org-jan", ValidFrom: january, ValidTo: &oldTo,
+		Types: []hierarchy.Type{
+			{TypeID: "root", TypeName: "Root", Order: 0, Tenant: "T1", Status: "ACTIVE"},
+			{TypeID: "leaf", TypeName: "Leaf", Order: 1, Tenant: "T1", Status: "ACTIVE"},
+		},
+		Nodes: []hierarchy.Node{
+			{NodeID: "OLD", Tenant: "T1", TypeID: "root", Name: "Old", Status: "ACTIVE"},
+			{NodeID: "E1", Tenant: "T1", TypeID: "leaf", Name: "Employee", ParentNodeID: "OLD", Status: "ACTIVE"},
+		},
+	}
+	newHierarchy := HierarchyBundle{
+		SnapshotID: "org-feb", ValidFrom: february,
+		Types: append([]hierarchy.Type(nil), oldHierarchy.Types...),
+		Nodes: []hierarchy.Node{
+			{NodeID: "NEW", Tenant: "T1", TypeID: "root", Name: "New", Status: "ACTIVE"},
+			{NodeID: "E1", Tenant: "T1", TypeID: "leaf", Name: "Employee", ParentNodeID: "NEW", Status: "ACTIVE"},
+		},
+	}
+	cache := NewCache()
+	if err := cache.Replace(Bundle{Hierarchies: []HierarchyBundle{newHierarchy, oldHierarchy}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		at, pin, root string
+	}{
+		{january.Add(time.Hour).Format(time.RFC3339), "", "OLD"},
+		{february.Add(time.Hour).Format(time.RFC3339), "", "NEW"},
+		{january.Add(time.Hour).Format(time.RFC3339), "org-jan", "OLD"},
+	} {
+		at, _ := time.Parse(time.RFC3339, test.at)
+		snapshot, _, found := cache.Load().HierarchyAt("T1", at, test.pin)
+		if !found {
+			t.Fatalf("HierarchyAt(%s, %q) was not found", test.at, test.pin)
+		}
+		path, err := snapshot.Path("T1", "E1")
+		if err != nil || len(path) != 2 || path[0].NodeID != test.root {
+			t.Fatalf("HierarchyAt(%s, %q) path = %v, %v", test.at, test.pin, path, err)
+		}
+	}
+	if cache.Stats().HierarchyNodes != 2 || cache.Stats().HierarchyTypes != 2 {
+		t.Fatalf("historical hierarchy stats = %+v", cache.Stats())
+	}
+	overlap := oldHierarchy
+	overlap.SnapshotID = "overlap"
+	overlap.ValidFrom = january.Add(24 * time.Hour)
+	if err := cache.Replace(Bundle{Hierarchies: []HierarchyBundle{oldHierarchy, overlap}}); err == nil {
+		t.Fatal("overlapping hierarchy intervals were accepted")
+	}
+}
+
 func TestVersionResolverPrecedence(t *testing.T) {
 	cache := NewCache()
 	old := testRule("alpha", "1.0.0", january)
@@ -205,12 +259,13 @@ func TestVersionResolverPrecedence(t *testing.T) {
 	if err := runs.Put(manifest.RunManifest{
 		RunID: "run-1", Tenant: "T1", ValidAt: january, Status: manifest.StatusOpen, OpenedAt: january,
 		RulePins: map[string]string{old.RuleKey.String(): "1.0.0"}, FactPins: map[string]string{"balance": "2"},
+		HierarchySnapshotID: "default",
 	}); err != nil {
 		t.Fatal(err)
 	}
 	resolver := NewVersionResolver(cache, runs)
 	selected, err := resolver.Resolve(context.Background(), VersionRequest{
-		Tenant: "T1", RuleKey: old.RuleKey, RunID: "run-1", ExplicitPin: "1.1.0", EffectiveAt: january.Add(60 * 24 * time.Hour),
+		Tenant: "T1", RuleKey: old.RuleKey, RunID: "run-1", ExplicitPin: "1.1.0", EffectiveAt: january,
 	})
 	if err != nil || len(selected) != 1 || selected[0].Version != "1.0.0" {
 		t.Fatalf("manifest resolution = %v, %v; want 1.0.0", selected, err)
@@ -256,7 +311,7 @@ func TestVersionResolverManifestFailures(t *testing.T) {
 		t.Fatal(err)
 	}
 	runs := manifest.NewInMemoryStore()
-	if err := runs.Put(manifest.RunManifest{RunID: "other", Tenant: "T2", ValidAt: january, OpenedAt: january, Status: manifest.StatusOpen, RulePins: map[string]string{}, FactPins: map[string]string{}}); err != nil {
+	if err := runs.Put(manifest.RunManifest{RunID: "other", Tenant: "T2", ValidAt: january, OpenedAt: january, Status: manifest.StatusOpen, RulePins: map[string]string{}, FactPins: map[string]string{}, HierarchySnapshotID: "default"}); err != nil {
 		t.Fatal(err)
 	}
 	resolver := NewVersionResolver(cache, runs)

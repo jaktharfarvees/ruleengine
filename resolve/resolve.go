@@ -73,7 +73,7 @@ func Resolve(input Input, definitions []*rule.RuleDefinition, snapshot *hierarch
 		return result
 	}
 	if len(tieIndexes) > 0 {
-		setTie(&result, tieIndexes, priorityUsed)
+		resolveTie(&result, tieIndexes, priorityUsed)
 		return result
 	}
 	result.FailClosed = true
@@ -103,7 +103,7 @@ func resolveCandidate(candidate *Candidate, input Input, path []hierarchy.PathEn
 		candidate.Reason = "rule is not effective at the requested validity time"
 		return
 	}
-	precedence, onPath := precedenceOnPath(definition.Scope.Anchor, path, input.EmployeeID, input.Tenant, snapshot)
+	precedence, onPath := precedenceOnPath(definition.EffectiveAnchor(), path, input.EmployeeID, input.Tenant, snapshot)
 	if !onPath {
 		candidate.EliminatedBy = EliminatedNotOnPath
 		candidate.Reason = "rule anchor does not cover the subject"
@@ -111,7 +111,7 @@ func resolveCandidate(candidate *Candidate, input Input, path []hierarchy.PathEn
 	}
 	candidate.OnPath = true
 	candidate.Precedence = precedence
-	matched, failedOn := FiltersMatch(definition.Scope.Filters, input.Attributes)
+	matched, failedOn := FiltersMatch(definition.EffectiveAttributeFilters(), input.Attributes)
 	candidate.FiltersMatched = matched
 	if !matched {
 		candidate.FailedOn = failedOn
@@ -320,6 +320,22 @@ func setTie(result *Result, indexes []int, priorityUsed bool) {
 	result.ReasonCode = reasonPrecedenceTieUnresolved
 }
 
+func resolveTie(result *Result, indexes []int, priorityUsed bool) {
+	setTie(result, indexes, priorityUsed)
+	winnerIndex := indexes[0]
+	winner := &result.Candidates[winnerIndex]
+	winner.Winner = true
+	winner.Reason = "deterministic runtime fallback selected this candidate; publication must reject the overlap"
+	result.Winner = winner
+	for _, index := range indexes[1:] {
+		candidate := &result.Candidates[index]
+		candidate.EliminatedBy = EliminatedTieBreak
+		candidate.Reason = "deterministic runtime fallback selected the lexically earlier candidate"
+	}
+	result.FailClosed = false
+	result.ReasonCode = reasonOK
+}
+
 func survives(candidate Candidate) bool { return candidate.EliminatedBy == EliminatedNone }
 
 func inTopGroup(candidate Candidate, order, depth, filters int) bool {
@@ -331,7 +347,7 @@ func filterCount(candidate Candidate) int {
 	if candidate.Rule == nil {
 		return 0
 	}
-	return len(candidate.Rule.Scope.Filters)
+	return len(candidate.Rule.EffectiveAttributeFilters())
 }
 
 func priority(candidate Candidate) (int, bool) {
@@ -345,7 +361,16 @@ func candidateKey(candidate Candidate) string {
 	if candidate.Rule == nil {
 		return ""
 	}
-	return string(candidate.Rule.RuleKey)
+	definition := candidate.Rule
+	anchor := definition.EffectiveAnchor()
+	filters := definition.EffectiveAttributeFilters()
+	parts := make([]string, 0, len(filters))
+	for _, filter := range filters {
+		parts = append(parts, fmt.Sprintf("%s\x1d%s\x1d%#v", filter.Attribute, filter.Op, filter.Value))
+	}
+	slices.Sort(parts)
+	return string(definition.RuleKey) + "\x1f" + definition.Version + "\x1f" +
+		string(anchor.Kind) + "\x1f" + anchor.NodeID + "\x1f" + anchor.EmployeeID + "\x1f" + strings.Join(parts, "\x1e")
 }
 
 func candidateVersion(candidate Candidate) string {

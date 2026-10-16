@@ -8,7 +8,7 @@ func TestLoadRWB(t *testing.T) {
 		t.Fatal(err)
 	}
 	path, err := snapshot.Path("RWB", "BR001")
-	if err != nil || len(path) != 4 || path[0].NodeID != "BR001" || path[3].NodeID != "G001" {
+	if err != nil || len(path) != 4 || path[0].NodeID != "G001" || path[3].NodeID != "BR001" {
 		t.Fatalf("Path() = %#v, %v", path, err)
 	}
 }

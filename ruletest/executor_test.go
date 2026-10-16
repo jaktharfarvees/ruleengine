@@ -246,7 +246,7 @@ func TestInMemoryExecutorRefusesUnusableInput(t *testing.T) {
 	}
 	// An invalid manifest.
 	broken := probeManifest()
-	broken.Grain = ""
+	broken.OwnerService, broken.SourceService = "", ""
 	if _, err := ruletest.NewInMemoryExecutor(broken); err == nil {
 		t.Fatal("an invalid manifest was accepted")
 	}

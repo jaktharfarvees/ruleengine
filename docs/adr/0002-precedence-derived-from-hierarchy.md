@@ -24,7 +24,7 @@ rules, which changes decisions for employees nobody intended to touch.
 
 Precedence is derived, never authored. A rule is anchored to exactly one place:
 one hierarchy node, or one employee. The subject's node path is computed from
-the tenant's own hierarchy, deepest first. Among candidates whose anchor lies on
+the tenant's own hierarchy, root to leaf. Among candidates whose anchor lies on
 that path, the deepest anchor wins; equal depth is then broken by the hierarchy
 type's declared order, then by filter specificity, then by an explicit
 tie-break priority.
@@ -35,7 +35,7 @@ Concretely:
   module. `architecture_test.go` fails if one reappears.
 - `RuleDefinition` has no precedence field. `hierarchy.DerivePrecedence` is the
   only producer of `DerivedPrecedence`, and it is read-only.
-- `Scope` is `{Anchor, Filters}`. Filters narrow a rule within its anchor; they
+- The wire contract uses `anchor` plus optional `attributeFilters`. Filters narrow a rule within its anchor; they
   never raise it above a deeper anchor (test RT06).
 - An employee anchor outranks every node anchor, using a reserved order of
   `math.MaxInt32` that no real hierarchy type can hold (test RT04).
@@ -48,8 +48,8 @@ this by inserting a Division level and asserting the winner is unchanged.
 
 Because resolution now walks a path on every evaluation, the hierarchy package
 is on the critical path of every decision. Node paths are therefore precomputed
-at load time and the cache is swapped atomically, so `Snapshot.Path` is
-allocation-free and readers never take a lock.
+at load time and the cache is swapped atomically. `Snapshot.Path` returns a
+defensive copy, and readers never take a lock.
 
 The cost is that a rule cannot be written against an abstract level such as "all
 companies in Canada". That is expressed instead by anchoring at the node and

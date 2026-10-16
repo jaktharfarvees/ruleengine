@@ -4,7 +4,7 @@
   "title": "Evaluation Request",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "tenant", "routing", "subject", "asOf"],
+  "required": ["schemaVersion", "tenant", "routing", "subject", "context", "asOf"],
   "properties": {
     "schemaVersion": {"type": "integer", "const": 2},
     "tenant": {
@@ -13,7 +13,7 @@
     },
     "routing": {
       "type": "object", "additionalProperties": false,
-      "required": ["domain", "ruleSet", "name"],
+      "required": ["domain", "ruleSet", "name", "ruleKey"],
       "properties": {
         "domain": {"type": "string", "minLength": 1},
         "ruleSet": {"type": "string", "minLength": 1},
@@ -24,12 +24,12 @@
     },
     "subject": {
       "type": "object", "additionalProperties": false,
-      "required": ["type", "identifier"],
+      "required": ["type", "identifier", "nodeId"],
       "properties": {
         "type": {"type": "string", "minLength": 1},
         "identifier": {"$ref": "#/$defs/identifier"},
         "alternateIdentifiers": {"type": "array", "items": {"$ref": "#/$defs/identifier"}},
-        "nodeId": {"type": "string"},
+        "nodeId": {"type": "string", "minLength": 1},
         "attributes": {"type": "object"}
       }
     },

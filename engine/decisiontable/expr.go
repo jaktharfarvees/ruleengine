@@ -74,7 +74,11 @@ func resolveOutputs(outputs map[string]compiledOutput, facts map[string]any) (ma
 		if output.arithmetic {
 			if currency, ok := facts["currency"].(string); ok {
 				if decimal, exact := decimalx.FromValue(value); exact {
-					value = decimalx.QuantizeCurrency(decimal, currency)
+					quantized, err := decimalx.QuantizeCurrencyStrict(decimal, currency)
+					if err != nil {
+						return nil, fmt.Errorf("output %q: %w", key, err)
+					}
+					value = quantized
 				}
 			}
 		}

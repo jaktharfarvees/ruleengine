@@ -144,7 +144,7 @@ func Example_evaluateAll() {
 
 	// Output:
 	// all passed: true
-	//   min-service  map[eligible:true reasonCode:ELIGIBLE]
+	//   min-service  map[eligible:true reasonCode:OK]
 	//   balance      map[allowed:true reasonCode:BALANCE_SUFFICIENT]
 }
 
