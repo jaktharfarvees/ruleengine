@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -41,30 +40,30 @@ type VersionRequest struct {
 // manifests.
 type VersionResolver struct {
 	cache     *Cache
-	manifests manifest.Store
+	manifests manifest.Reader
 }
 
 // NewVersionResolver constructs a resolver. manifests may be nil when batch
 // runs are not supported by the consumer.
-func NewVersionResolver(cache *Cache, manifests manifest.Store) *VersionResolver {
+func NewVersionResolver(cache *Cache, manifests manifest.Reader) *VersionResolver {
 	return &VersionResolver{cache: cache, manifests: manifests}
 }
 
 // Resolve applies manifest, explicit-pin, and effective-at precedence. It
-// returns every anchored variant selected by that constraint; anchor
-// resolution must see the whole slice so a baseline and employee exception at
-// the same version remain distinguishable.
-func (r *VersionResolver) Resolve(ctx context.Context, request VersionRequest) ([]*rule.RuleDefinition, error) {
+// returns every node-anchored variant selected by that constraint; anchor
+// resolution must see the whole slice so variants at different nodes or with
+// different filters remain distinguishable.
+func (r *VersionResolver) Resolve(request VersionRequest) ([]*rule.RuleDefinition, error) {
 	if r == nil || r.cache == nil {
 		return nil, ErrCacheUnavailable
 	}
-	return r.ResolveSnapshot(ctx, r.cache.Load(), request)
+	return r.ResolveSnapshot(r.cache.Load(), request)
 }
 
 // ResolveSnapshot applies version selection to the exact immutable snapshot
 // owned by the current evaluation. It is the hot-path API; Resolve remains for
 // callers that deliberately want the cache's latest published view.
-func (r *VersionResolver) ResolveSnapshot(ctx context.Context, snapshot *Snapshot, request VersionRequest) ([]*rule.RuleDefinition, error) {
+func (r *VersionResolver) ResolveSnapshot(snapshot *Snapshot, request VersionRequest) ([]*rule.RuleDefinition, error) {
 	if r == nil || snapshot == nil {
 		return nil, ErrCacheUnavailable
 	}
@@ -76,7 +75,7 @@ func (r *VersionResolver) ResolveSnapshot(ctx context.Context, snapshot *Snapsho
 	}
 	pin := request.ExplicitPin
 	if request.RunID != "" {
-		run, err := r.RunManifest(ctx, request.Tenant, request.RunID)
+		run, err := r.RunManifest(request.Tenant, request.RunID)
 		if err != nil {
 			return nil, err
 		}
@@ -120,14 +119,11 @@ func (r *VersionResolver) ResolveSnapshot(ctx context.Context, snapshot *Snapsho
 
 // RunManifest returns a tenant-checked immutable run manifest from the
 // consumer's locally cached manifest store.
-func (r *VersionResolver) RunManifest(ctx context.Context, tenant, runID string) (manifest.RunManifest, error) {
+func (r *VersionResolver) RunManifest(tenant, runID string) (manifest.RunManifest, error) {
 	if r == nil || r.manifests == nil {
 		return manifest.RunManifest{}, fmt.Errorf("%w: %q", ErrRunManifestUnavailable, runID)
 	}
-	run, found, err := r.manifests.Get(ctx, runID)
-	if err != nil {
-		return manifest.RunManifest{}, fmt.Errorf("read run manifest %q: %w", runID, err)
-	}
+	run, found := r.manifests.Get(runID)
 	if !found {
 		return manifest.RunManifest{}, fmt.Errorf("%w: %q", ErrRunManifestUnavailable, runID)
 	}
@@ -139,17 +135,14 @@ func (r *VersionResolver) RunManifest(ctx context.Context, tenant, runID string)
 
 // FactPin returns a run's frozen fact-source version after enforcing the same
 // tenant boundary as rule resolution.
-func (r *VersionResolver) FactPin(ctx context.Context, tenant, runID, field string) (string, bool, error) {
+func (r *VersionResolver) FactPin(tenant, runID, field string) (string, bool, error) {
 	if runID == "" || field == "" {
 		return "", false, fmt.Errorf("fact pin requires runId and field")
 	}
 	if r == nil || r.manifests == nil {
 		return "", false, fmt.Errorf("%w: %q", ErrRunManifestUnavailable, runID)
 	}
-	run, found, err := r.manifests.Get(ctx, runID)
-	if err != nil {
-		return "", false, fmt.Errorf("read run manifest %q: %w", runID, err)
-	}
+	run, found := r.manifests.Get(runID)
 	if !found {
 		return "", false, fmt.Errorf("%w: %q", ErrRunManifestUnavailable, runID)
 	}

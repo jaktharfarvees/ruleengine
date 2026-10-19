@@ -4,7 +4,7 @@ Date: 2026-10-15
 
 ## Status
 
-Accepted. Implements locked decision D17 and supersedes the fixed-level model of
+Accepted. Implements locked decision D10' and supersedes the fixed-level model of
 implementation plan v1.0.
 
 ## Context
@@ -22,12 +22,11 @@ rules, which changes decisions for employees nobody intended to touch.
 
 ## Decision
 
-Precedence is derived, never authored. A rule is anchored to exactly one place:
-one hierarchy node, or one employee. The subject's node path is computed from
-the tenant's own hierarchy, root to leaf. Among candidates whose anchor lies on
-that path, the deepest anchor wins; equal depth is then broken by the hierarchy
-type's declared order, then by filter specificity, then by an explicit
-tie-break priority.
+Precedence is derived, never authored. A rule is anchored to exactly one
+hierarchy node. The subject's node path is computed from the tenant's own
+hierarchy, root to leaf. Among candidates whose anchor lies on that path, the
+deepest anchor wins. Candidates at the same node are then compared by filter
+specificity and explicit tie-break priority.
 
 Concretely:
 
@@ -37,8 +36,8 @@ Concretely:
   only producer of `DerivedPrecedence`, and it is read-only.
 - The wire contract uses `anchor` plus optional `attributeFilters`. Filters narrow a rule within its anchor; they
   never raise it above a deeper anchor (test RT06).
-- An employee anchor outranks every node anchor, using a reserved order of
-  `math.MaxInt32` that no real hierarchy type can hold (test RT04).
+- The retired `employee` anchor kind is rejected by validation, authorization,
+  hierarchy precedence derivation, and resolution (test RT04).
 
 ## Consequences
 
@@ -55,3 +54,7 @@ The cost is that a rule cannot be written against an abstract level such as "all
 companies in Canada". That is expressed instead by anchoring at the node and
 resolving country from the nearest declaring ancestor (test RT09), which is more
 honest: the rule names the part of the organisation it actually governs.
+
+An employee-specific policy is not a separate precedence level. It is modeled
+as a node in the tenant hierarchy where that granularity is required, or as an
+attribute filter among rules anchored at the same node.

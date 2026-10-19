@@ -26,8 +26,6 @@ type Expectation struct {
 	RuleVersion string
 	// ResolvedNodeID is the anchor that must have won.
 	ResolvedNodeID string
-	// EmployeeException asserts the winner was an employee-level exception.
-	EmployeeException bool
 	// Result is the output the rule must have produced. Only the named keys
 	// are compared, so a test can assert one field of a larger result.
 	Result map[string]any
@@ -67,9 +65,6 @@ func DecisionEquals(t testing.TB, got ruleengine.Decision, want Expectation) {
 			problems = append(problems, fmt.Sprintf(
 				"resolved at %q, want %q", got.ResolvedAt.NodeID, want.ResolvedNodeID))
 		}
-	}
-	if want.EmployeeException && (got.ResolvedAt == nil || !got.ResolvedAt.IsEmployeeException) {
-		problems = append(problems, "the winner is not an employee exception")
 	}
 	for name, expected := range want.Result {
 		actual, produced := got.Result[name]
@@ -144,9 +139,6 @@ func explain(decision ruleengine.Decision) string {
 	fmt.Fprintf(&report, "    rule        %s @ %s\n", orNone(decision.RuleKey.String()), orNone(decision.RuleVersion))
 	if decision.ResolvedAt != nil {
 		anchor := decision.ResolvedAt.NodeID
-		if decision.ResolvedAt.IsEmployeeException {
-			anchor = "employee exception"
-		}
 		fmt.Fprintf(&report, "    resolved at %s (%s, order %d, depth %d)\n",
 			anchor, orNone(decision.ResolvedAt.TypeName),
 			decision.ResolvedAt.Order, decision.ResolvedAt.Depth)
@@ -173,9 +165,6 @@ func explain(decision ruleengine.Decision) string {
 				outcome = "WINNER"
 			}
 			anchor := evaluated.Anchor.NodeID
-			if anchor == "" {
-				anchor = "employee:" + evaluated.Anchor.EmployeeID
-			}
 			fmt.Fprintf(&report, "      %-10s %s @ %s anchored %s", outcome,
 				evaluated.RuleKey, evaluated.RuleVersion, anchor)
 			if evaluated.Reason != "" {

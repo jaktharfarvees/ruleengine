@@ -8,6 +8,7 @@ import (
 
 	"github.com/arrowhr/ruleengine/dataset"
 	"github.com/arrowhr/ruleengine/hierarchy"
+	internalclock "github.com/arrowhr/ruleengine/internal/clock"
 	"github.com/arrowhr/ruleengine/registry"
 	"github.com/arrowhr/ruleengine/rule"
 	"github.com/arrowhr/ruleengine/telemetry"
@@ -16,10 +17,6 @@ import (
 // Clock supplies lifecycle time for cache freshness. Evaluation business time
 // is always passed explicitly and never read from this clock.
 type Clock interface{ Now() time.Time }
-
-type systemClock struct{}
-
-func (systemClock) Now() time.Time { return time.Now() }
 
 // Cache atomically publishes immutable store snapshots. Readers never acquire
 // a mutex and a failed reload never replaces the last valid snapshot.
@@ -53,7 +50,7 @@ func WithClock(value Clock) Option {
 
 // NewCache constructs an empty cache.
 func NewCache(options ...Option) *Cache {
-	cache := &Cache{metrics: telemetry.Nop(), clock: systemClock{}}
+	cache := &Cache{metrics: telemetry.Nop(), clock: internalclock.System{}}
 	for _, option := range options {
 		option(cache)
 	}
@@ -87,6 +84,7 @@ func (c *Cache) Replace(bundle Bundle) error {
 	c.lastSuccess.Store(loadedAt.UnixNano())
 	c.observeEntries(snapshot.stats)
 	c.metrics.Histogram(telemetry.MetricCacheStaleSeconds).Observe(0)
+	c.metrics.Histogram(telemetry.MetricHierarchyStaleSeconds).Observe(0)
 	return nil
 }
 
@@ -173,7 +171,9 @@ func (c *Cache) StaleSeconds() float64 {
 
 func (c *Cache) observeStaleness() {
 	if c != nil {
-		c.metrics.Histogram(telemetry.MetricCacheStaleSeconds).Observe(c.StaleSeconds())
+		staleSeconds := c.StaleSeconds()
+		c.metrics.Histogram(telemetry.MetricCacheStaleSeconds).Observe(staleSeconds)
+		c.metrics.Histogram(telemetry.MetricHierarchyStaleSeconds).Observe(staleSeconds)
 	}
 }
 

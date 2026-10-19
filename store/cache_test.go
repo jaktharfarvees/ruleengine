@@ -70,10 +70,10 @@ func TestSnapshotOwnsInputData(t *testing.T) {
 
 func TestExactVersionPreservesAnchoredVariants(t *testing.T) {
 	baseline := testRule("alpha", "1.0.0", january)
-	exception := cloneRule(baseline)
-	exception.Scope.Anchor = rule.Anchor{Kind: rule.AnchorEmployee, EmployeeID: "E1", Reason: "approved exception"}
+	branch := cloneRule(baseline)
+	branch.Scope.Anchor = rule.Anchor{Kind: rule.AnchorNode, NodeID: "branch"}
 	cache := NewCache()
-	if err := cache.Replace(Bundle{Rules: []rule.RuleDefinition{baseline, exception}}); err != nil {
+	if err := cache.Replace(Bundle{Rules: []rule.RuleDefinition{baseline, branch}}); err != nil {
 		t.Fatal(err)
 	}
 	if variants := cache.Version("T1", baseline.RuleKey, "1.0.0"); len(variants) != 2 {
@@ -264,29 +264,29 @@ func TestVersionResolverPrecedence(t *testing.T) {
 		t.Fatal(err)
 	}
 	resolver := NewVersionResolver(cache, runs)
-	selected, err := resolver.Resolve(context.Background(), VersionRequest{
+	selected, err := resolver.Resolve(VersionRequest{
 		Tenant: "T1", RuleKey: old.RuleKey, RunID: "run-1", ExplicitPin: "1.1.0", EffectiveAt: january,
 	})
 	if err != nil || len(selected) != 1 || selected[0].Version != "1.0.0" {
 		t.Fatalf("manifest resolution = %v, %v; want 1.0.0", selected, err)
 	}
-	selected, err = resolver.Resolve(context.Background(), VersionRequest{Tenant: "T1", RuleKey: old.RuleKey, ExplicitPin: "1.0.0", EffectiveAt: january.Add(60 * 24 * time.Hour)})
+	selected, err = resolver.Resolve(VersionRequest{Tenant: "T1", RuleKey: old.RuleKey, ExplicitPin: "1.0.0", EffectiveAt: january.Add(60 * 24 * time.Hour)})
 	if err != nil || len(selected) != 1 || selected[0].Version != "1.0.0" {
 		t.Fatalf("explicit-pin resolution = %v, %v; want 1.0.0", selected, err)
 	}
 	// With no pin, the latest version effective at the requested time wins.
 	// Both versions are effective here, because an immutable 1.0.0 carries no
 	// validTo, and returning both would make resolution report a tie.
-	selected, err = resolver.Resolve(context.Background(), VersionRequest{Tenant: "T1", RuleKey: old.RuleKey, EffectiveAt: january.Add(60 * 24 * time.Hour)})
+	selected, err = resolver.Resolve(VersionRequest{Tenant: "T1", RuleKey: old.RuleKey, EffectiveAt: january.Add(60 * 24 * time.Hour)})
 	if err != nil || len(selected) != 1 || selected[0].Version != "1.1.0" {
 		t.Fatalf("effective resolution = %v, %v; want only the latest, 1.1.0", versionsOf(selected), err)
 	}
 	// Before 1.1.0 takes effect, the same request resolves to 1.0.0.
-	selected, err = resolver.Resolve(context.Background(), VersionRequest{Tenant: "T1", RuleKey: old.RuleKey, EffectiveAt: january.Add(24 * time.Hour)})
+	selected, err = resolver.Resolve(VersionRequest{Tenant: "T1", RuleKey: old.RuleKey, EffectiveAt: january.Add(24 * time.Hour)})
 	if err != nil || len(selected) != 1 || selected[0].Version != "1.0.0" {
 		t.Fatalf("earlier effective resolution = %v, %v; want 1.0.0", versionsOf(selected), err)
 	}
-	factPin, found, err := resolver.FactPin(context.Background(), "T1", "run-1", "balance")
+	factPin, found, err := resolver.FactPin("T1", "run-1", "balance")
 	if err != nil || !found || factPin != "2" {
 		t.Fatalf("FactPin = %q, %v, %v; want 2, true, nil", factPin, found, err)
 	}
@@ -298,7 +298,7 @@ func TestVersionResolverReportsMissingPin(t *testing.T) {
 	if err := cache.Replace(Bundle{Rules: []rule.RuleDefinition{definition}}); err != nil {
 		t.Fatal(err)
 	}
-	_, err := NewVersionResolver(cache, nil).Resolve(context.Background(), VersionRequest{Tenant: "T1", RuleKey: definition.RuleKey, ExplicitPin: "9.0.0"})
+	_, err := NewVersionResolver(cache, nil).Resolve(VersionRequest{Tenant: "T1", RuleKey: definition.RuleKey, ExplicitPin: "9.0.0"})
 	if !errors.Is(err, ErrPinnedVersionUnavailable) {
 		t.Fatalf("Resolve missing pin error = %v, want ErrPinnedVersionUnavailable", err)
 	}
@@ -315,13 +315,13 @@ func TestVersionResolverManifestFailures(t *testing.T) {
 		t.Fatal(err)
 	}
 	resolver := NewVersionResolver(cache, runs)
-	if _, err := resolver.Resolve(context.Background(), VersionRequest{Tenant: "T1", RuleKey: definition.RuleKey, RunID: "missing"}); !errors.Is(err, ErrRunManifestUnavailable) {
+	if _, err := resolver.Resolve(VersionRequest{Tenant: "T1", RuleKey: definition.RuleKey, RunID: "missing"}); !errors.Is(err, ErrRunManifestUnavailable) {
 		t.Fatalf("missing manifest error = %v", err)
 	}
-	if _, err := resolver.Resolve(context.Background(), VersionRequest{Tenant: "T1", RuleKey: definition.RuleKey, RunID: "other"}); !errors.Is(err, ErrRunTenantMismatch) {
+	if _, err := resolver.Resolve(VersionRequest{Tenant: "T1", RuleKey: definition.RuleKey, RunID: "other"}); !errors.Is(err, ErrRunTenantMismatch) {
 		t.Fatalf("tenant mismatch error = %v", err)
 	}
-	if _, err := resolver.Resolve(context.Background(), VersionRequest{Tenant: "T1", RuleKey: definition.RuleKey, EffectiveAt: january.Add(-time.Hour)}); !errors.Is(err, ErrEffectiveVersionUnavailable) {
+	if _, err := resolver.Resolve(VersionRequest{Tenant: "T1", RuleKey: definition.RuleKey, EffectiveAt: january.Add(-time.Hour)}); !errors.Is(err, ErrEffectiveVersionUnavailable) {
 		t.Fatalf("no effective version error = %v", err)
 	}
 }

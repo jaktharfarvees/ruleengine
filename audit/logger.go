@@ -9,10 +9,9 @@ import (
 //
 // It carries identifiers, unlike anything the library logs, because the audit
 // store is access-controlled and a decision cannot be explained without them.
-// It does not carry fact or result *values* for fields the registry marks as
-// personal: Facts names the fields that were used and where each came from,
-// which is what explains a decision without copying an employee's data into a
-// second store.
+// High-risk configurations may also carry exact inputs for replay; these can
+// contain PII and therefore belong only in the secured audit store. SlogSink
+// deliberately never emits identifiers, exact inputs, or result values.
 type Record struct {
 	// DecisionID is the identity of this decision.
 	DecisionID string `json:"decisionId"`
@@ -41,13 +40,19 @@ type Record struct {
 	// Facts records which fields were used and how each was obtained, by name
 	// only.
 	Facts []Fact `json:"facts,omitempty"`
-	// Result is the decision's output. It is stored because a payroll figure
-	// has to be reproducible, and the audit store is access-controlled.
+	// Result is the decision's output. Values for registry fields marked as PII
+	// are replaced before the record reaches a logger. Non-PII payroll figures
+	// remain available for reproducibility.
 	Result map[string]any `json:"result,omitempty"`
 	// InputsHash is a SHA-256 digest of the effective fact and subject-attribute
 	// values. It supports replay comparison without duplicating sensitive input
 	// values into operational logs.
 	InputsHash string `json:"inputsHash,omitempty"`
+	// Inputs contains the exact effective facts and subject attributes for a
+	// money/compliance decision. It is present only when durable auditing is
+	// required and can contain PII; it must remain in access-controlled audit
+	// storage and must never be copied into operational logs.
+	Inputs *Inputs `json:"inputs,omitempty"`
 	// ReasonCodes explains the outcome, and Failed says whether it stands.
 	ReasonCodes []string `json:"reasonCodes,omitempty"`
 	Failed      bool     `json:"failed"`
@@ -71,6 +76,15 @@ type Record struct {
 	// RecordedAt is when the record was created, which is not the decision
 	// time: a dropped and re-sent record keeps its decision time.
 	RecordedAt time.Time `json:"recordedAt"`
+}
+
+// Inputs is the complete data that affected evaluation. Facts contains the
+// resolved values supplied to the decision engine. Attributes remains separate
+// because it also affects candidate filters, and a fact with the same name
+// intentionally shadows an attribute at engine evaluation time.
+type Inputs struct {
+	Facts      map[string]any `json:"facts"`
+	Attributes map[string]any `json:"attributes"`
 }
 
 // Candidate is one rule that resolution considered.

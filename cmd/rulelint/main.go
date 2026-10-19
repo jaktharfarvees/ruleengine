@@ -36,6 +36,8 @@ import (
 	"github.com/arrowhr/ruleengine/schema"
 )
 
+const artifactRegistry = "registry"
+
 func main() {
 	root := flag.String("root", ".", "directory holding the standard fixture layout")
 	quiet := flag.Bool("quiet", false, "print only problems, not the summary")
@@ -166,7 +168,7 @@ func lintFile(result *report, path string) {
 	switch kind := inferKind(data); kind {
 	case "rule":
 		lintRule(result, path, data)
-	case "registry":
+	case artifactRegistry:
 		lintRegistry(result, path, data)
 	case "dataset":
 		lintDataset(result, path, data)
@@ -194,7 +196,7 @@ func inferKind(data []byte) string {
 		// An array is the bare form of a field registry.
 		var fields []registry.FieldDefinition
 		if json.Unmarshal(data, &fields) == nil {
-			return "registry"
+			return artifactRegistry
 		}
 		return ""
 	}
@@ -206,7 +208,7 @@ func inferKind(data []byte) string {
 	case probe.Dataset != "":
 		return "dataset"
 	case probe.Fields != nil:
-		return "registry"
+		return artifactRegistry
 	case probe.Types != nil && probe.Nodes != nil:
 		return "hierarchy"
 	default:
@@ -410,7 +412,6 @@ func crossCheck(result *report) {
 				field.Name, source.Dataset, err)
 		}
 	}
-
 }
 
 func reportTies(result *report) {
@@ -570,9 +571,6 @@ func setIsSubset(values, excluded map[string]bool) bool {
 
 func anchorKey(definition rule.RuleDefinition) string {
 	anchor := definition.EffectiveAnchor()
-	if anchor.Kind == rule.AnchorEmployee {
-		return "employee:" + anchor.EmployeeID
-	}
 	return "node:" + anchor.NodeID
 }
 

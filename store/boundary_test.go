@@ -290,6 +290,9 @@ func TestWithMetricsReportsSizeAndStaleness(t *testing.T) {
 	if got := recorder.observed[telemetry.MetricCacheStaleSeconds]; len(got) != 1 || got[0] != 0 {
 		t.Fatalf("staleness after a successful publish = %v, want a single 0", got)
 	}
+	if got := recorder.observed[telemetry.MetricHierarchyStaleSeconds]; len(got) != 1 || got[0] != 0 {
+		t.Fatalf("hierarchy staleness after a successful publish = %v, want a single 0", got)
+	}
 
 	// A failure reports how stale the live snapshot has become.
 	clock.value = january.Add(90 * time.Second)
@@ -299,6 +302,10 @@ func TestWithMetricsReportsSizeAndStaleness(t *testing.T) {
 	staleness := recorder.observed[telemetry.MetricCacheStaleSeconds]
 	if len(staleness) != 2 || staleness[1] != 90 {
 		t.Fatalf("staleness after a failure = %v, want 90 seconds", staleness)
+	}
+	hierarchyStaleness := recorder.observed[telemetry.MetricHierarchyStaleSeconds]
+	if len(hierarchyStaleness) != 2 || hierarchyStaleness[1] != 90 {
+		t.Fatalf("hierarchy staleness after a failure = %v, want 90 seconds", hierarchyStaleness)
 	}
 
 	// Nil options are ignored rather than replacing the defaults with nil.
@@ -313,14 +320,14 @@ func TestFactPinBoundaries(t *testing.T) {
 	cache := selectionCache(t, anchoredRule("1.0.0", "G001", january))
 	resolver := NewVersionResolver(cache, nil)
 
-	if _, _, err := resolver.FactPin(context.Background(), "T1", "", "balance"); err == nil {
+	if _, _, err := resolver.FactPin("T1", "", "balance"); err == nil {
 		t.Fatal("FactPin accepted an empty run")
 	}
-	if _, _, err := resolver.FactPin(context.Background(), "T1", "run-1", ""); err == nil {
+	if _, _, err := resolver.FactPin("T1", "run-1", ""); err == nil {
 		t.Fatal("FactPin accepted an empty field")
 	}
 	// With no manifest store, a run cannot be consulted at all.
-	if _, _, err := resolver.FactPin(context.Background(), "T1", "run-1", "balance"); !errors.Is(err, ErrRunManifestUnavailable) {
+	if _, _, err := resolver.FactPin("T1", "run-1", "balance"); !errors.Is(err, ErrRunManifestUnavailable) {
 		t.Fatalf("FactPin without a store = %v, want ErrRunManifestUnavailable", err)
 	}
 }
@@ -343,20 +350,20 @@ func TestResolveRejectsMalformedRequests(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if _, err := resolver.Resolve(context.Background(), test.request); err == nil {
+			if _, err := resolver.Resolve(test.request); err == nil {
 				t.Fatal("Resolve accepted a malformed request")
 			}
 		})
 	}
 
 	// An unpublished cache is its own failure, distinct from a missing rule.
-	if _, err := NewVersionResolver(NewCache(), nil).Resolve(context.Background(), VersionRequest{
+	if _, err := NewVersionResolver(NewCache(), nil).Resolve(VersionRequest{
 		Tenant: "T1", RuleKey: key, EffectiveAt: january,
 	}); !errors.Is(err, ErrCacheUnavailable) {
 		t.Fatalf("Resolve on an empty cache = %v, want ErrCacheUnavailable", err)
 	}
 	var nilResolver *VersionResolver
-	if _, err := nilResolver.Resolve(context.Background(), VersionRequest{Tenant: "T1", RuleKey: key}); !errors.Is(err, ErrCacheUnavailable) {
+	if _, err := nilResolver.Resolve(VersionRequest{Tenant: "T1", RuleKey: key}); !errors.Is(err, ErrCacheUnavailable) {
 		t.Fatalf("a nil resolver = %v, want ErrCacheUnavailable", err)
 	}
 }

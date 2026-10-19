@@ -15,6 +15,12 @@ import (
 // that a test need not think about effective dating unless it is testing it.
 var defaultValidFrom = time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
 
+const (
+	fixtureDomain       = "test"
+	fixtureOwnerService = "test-service"
+	activeStatus        = "active"
+)
+
 // FixtureBuilder assembles a store bundle for a test.
 //
 // Writing a rule by hand means twenty fields of which three matter, so a test
@@ -95,8 +101,8 @@ func (b *FixtureBuilder) AddField(field registry.FieldDefinition) *FixtureBuilde
 // AddPassedField adds an input the caller supplies on the request.
 func (b *FixtureBuilder) AddPassedField(name string, dataType registry.DataType) *FixtureBuilder {
 	return b.AddField(registry.FieldDefinition{
-		Name: name, Domain: "test", DataType: dataType, OwnerService: "test-service",
-		Status: "active", Role: registry.RoleInput,
+		Name: name, Domain: fixtureDomain, DataType: dataType, OwnerService: fixtureOwnerService,
+		Status: activeStatus, Role: registry.RoleInput,
 		FactSource: registry.FactSource{Kind: registry.FactPassed},
 	})
 }
@@ -104,16 +110,16 @@ func (b *FixtureBuilder) AddPassedField(name string, dataType registry.DataType)
 // AddOutputField adds a field a rule may produce.
 func (b *FixtureBuilder) AddOutputField(name string, dataType registry.DataType) *FixtureBuilder {
 	return b.AddField(registry.FieldDefinition{
-		Name: name, Domain: "test", DataType: dataType, OwnerService: "test-service",
-		Status: "active", Role: registry.RoleOutput,
+		Name: name, Domain: fixtureDomain, DataType: dataType, OwnerService: fixtureOwnerService,
+		Status: activeStatus, Role: registry.RoleOutput,
 	})
 }
 
 // AddSubjectAttribute adds an attribute a scope filter may narrow on.
 func (b *FixtureBuilder) AddSubjectAttribute(name string, allowed ...string) *FixtureBuilder {
 	field := registry.FieldDefinition{
-		Name: name, Domain: "test", DataType: registry.DataString, OwnerService: "test-service",
-		Status: "active", Role: registry.RoleSubjectAttribute,
+		Name: name, Domain: fixtureDomain, DataType: registry.DataString, OwnerService: fixtureOwnerService,
+		Status: activeStatus, Role: registry.RoleSubjectAttribute,
 	}
 	if len(allowed) > 0 {
 		field.DataType = registry.DataEnum
@@ -203,15 +209,6 @@ func (r *RuleBuilder) Status(status rule.Status) *RuleBuilder {
 // precedence: the deepest anchor on the subject's path wins.
 func (r *RuleBuilder) AnchoredAt(nodeID string) *RuleBuilder {
 	r.definition.Scope.Anchor = rule.Anchor{Kind: rule.AnchorNode, NodeID: nodeID}
-	return r
-}
-
-// ForEmployee anchors the rule to one employee as an approved exception, which
-// outranks every node anchor.
-func (r *RuleBuilder) ForEmployee(employeeID, reason string) *RuleBuilder {
-	r.definition.Scope.Anchor = rule.Anchor{
-		Kind: rule.AnchorEmployee, EmployeeID: employeeID, Reason: reason,
-	}
 	return r
 }
 

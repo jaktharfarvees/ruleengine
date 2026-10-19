@@ -114,6 +114,7 @@ type Resolver struct {
 	natives   *NativeRegistry
 	budget    Budget
 	metrics   telemetry.Metrics
+	tracer    telemetry.Tracer
 }
 
 // NewResolver builds a resolver. The budget must be valid: an unset budget is
@@ -126,6 +127,21 @@ func NewResolver(
 	budget Budget,
 	metrics telemetry.Metrics,
 ) (*Resolver, error) {
+	return NewResolverWithTracer(fields, manifests, executor, natives, budget, metrics, nil)
+}
+
+// NewResolverWithTracer builds a resolver that also emits fact-kind child
+// spans. The root rule engine uses this constructor; NewResolver remains the
+// convenient vendor-neutral API for consumers that need fact resolution only.
+func NewResolverWithTracer(
+	fields *registry.Registry,
+	manifests map[string]dataset.Manifest,
+	executor dataset.Executor,
+	natives *NativeRegistry,
+	budget Budget,
+	metrics telemetry.Metrics,
+	tracer telemetry.Tracer,
+) (*Resolver, error) {
 	if fields == nil {
 		return nil, fmt.Errorf("fact resolver requires a field registry")
 	}
@@ -134,6 +150,9 @@ func NewResolver(
 	}
 	if metrics == nil {
 		metrics = telemetry.Nop()
+	}
+	if tracer == nil {
+		tracer = telemetry.NopTracer()
 	}
 	copied := make(map[string]dataset.Manifest, len(manifests))
 	for name, manifest := range manifests {
@@ -148,7 +167,7 @@ func NewResolver(
 	}
 	return &Resolver{
 		fields: fields, manifests: copied, executor: executor,
-		natives: natives, budget: budget, metrics: metrics,
+		natives: natives, budget: budget, metrics: metrics, tracer: tracer,
 	}, nil
 }
 
@@ -300,8 +319,17 @@ func (s *resolution) resolve(ctx context.Context, field string) (any, error) {
 	}
 
 	started := time.Now()
-	value, resolved, err := s.fetch(ctx, field, definition, source)
+	fetchContext, span := s.session.resolver.tracer.Start(ctx, telemetry.SpanFactKind(source.Kind.String()))
+	defer span.End()
+	span.SetAttr(telemetry.AttrField, field)
+	span.SetAttr(telemetry.AttrFactKind, source.Kind.String())
+	value, resolved, err := s.fetch(fetchContext, field, definition, source)
 	if err != nil {
+		classification := Code(err)
+		if classification == "" {
+			classification = ReasonUnresolvable
+		}
+		telemetry.RecordFailure(span, classification)
 		return nil, err
 	}
 	resolved.Field = field
@@ -313,6 +341,7 @@ func (s *resolution) resolve(ctx context.Context, field string) (any, error) {
 	// kind, so a dataset, a formula and a service function cannot disagree
 	// about what a field is.
 	if !definition.DataType.Accepts(value, definition.AllowedValues) {
+		telemetry.RecordFailure(span, ReasonFieldTypeMismatch)
 		return nil, &Fault{Code: ReasonFieldTypeMismatch, Field: field,
 			Err: fmt.Errorf("resolved value is not a valid %s", definition.DataType)}
 	}

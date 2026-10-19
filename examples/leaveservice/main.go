@@ -312,8 +312,5 @@ func decisionAnchor(decision ruleengine.Decision) string {
 	if decision.ResolvedAt == nil {
 		return "(unresolved)"
 	}
-	if decision.ResolvedAt.IsEmployeeException {
-		return "employee exception"
-	}
 	return decision.ResolvedAt.NodeID
 }

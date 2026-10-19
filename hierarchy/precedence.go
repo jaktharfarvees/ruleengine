@@ -2,27 +2,14 @@ package hierarchy
 
 import (
 	"fmt"
-	"math"
 	"strings"
 
 	"github.com/arrowhr/ruleengine/rule"
 )
 
-// EmployeeExceptionOrder is reserved for employee anchors and can never be a
-// real hierarchy-type order.
-const EmployeeExceptionOrder = math.MaxInt32
-
 // DerivePrecedence computes read-only precedence from an authored anchor.
 func (s *Snapshot) DerivePrecedence(tenant string, anchor rule.Anchor) (DerivedPrecedence, error) {
 	switch anchor.Kind {
-	case rule.AnchorEmployee:
-		if anchor.EmployeeID == "" {
-			return DerivedPrecedence{}, fmt.Errorf("employee anchor has no employee identifier")
-		}
-		return DerivedPrecedence{
-			Order: EmployeeExceptionOrder, Depth: EmployeeExceptionOrder,
-			IsEmployeeException: true,
-		}, nil
 	case rule.AnchorNode:
 		node, exists := s.Node(tenant, anchor.NodeID)
 		if !exists {

@@ -279,7 +279,7 @@ func (condition compiledCondition) evaluate(actual any, facts map[string]any) (b
 		if err != nil {
 			return false, err
 		}
-		switch condition.operator {
+		switch condition.operator { //nolint:exhaustive // Set and equality operators returned above.
 		case opGreater:
 			return comparison > 0, nil
 		case opGreaterEqual:
@@ -321,22 +321,22 @@ func (condition compiledCondition) setValues(facts map[string]any) ([]any, error
 }
 
 func equalValues(left, right any) (bool, error) {
-	comparison, comparable, err := compare(left, right)
+	comparison, ordered, err := compare(left, right)
 	if err != nil {
 		return false, err
 	}
-	if comparable {
+	if ordered {
 		return comparison == 0, nil
 	}
 	return reflect.DeepEqual(left, right), nil
 }
 
 func compareValues(left, right any) (int, error) {
-	comparison, comparable, err := compare(left, right)
+	comparison, ordered, err := compare(left, right)
 	if err != nil {
 		return 0, err
 	}
-	if !comparable {
+	if !ordered {
 		return 0, fmt.Errorf("values %T and %T are not comparable", left, right)
 	}
 	return comparison, nil

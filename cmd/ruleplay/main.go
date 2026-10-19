@@ -107,8 +107,12 @@ func run(out io.Writer, root, requestPath, rowsPath string, jsonOut, trace bool)
 		encoder.SetIndent("", "  ")
 		return encoder.Encode(decision)
 	}
-	fmt.Fprint(out, ruletest.Explain(decision))
-	fmt.Fprint(out, summary(decision, request))
+	if _, err := fmt.Fprint(out, ruletest.Explain(decision)); err != nil {
+		return fmt.Errorf("write explanation: %w", err)
+	}
+	if _, err := fmt.Fprint(out, summary(decision, request)); err != nil {
+		return fmt.Errorf("write summary: %w", err)
+	}
 	if decision.Failed {
 		return ErrDecisionFailed
 	}

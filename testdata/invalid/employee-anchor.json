@@ -1,0 +1,18 @@
+{
+  "ruleKey": "urn:arrowhr:rule:leave:eligibility:employee-anchor:v1",
+  "domain": "leave",
+  "ruleSet": "eligibility",
+  "name": "employee-anchor",
+  "version": "1.0.0",
+  "changeType": "MAJOR",
+  "status": "active",
+  "tenant": "RWB",
+  "anchor": {"kind": "employee", "employeeId": "E1001", "reason": "retired model"},
+  "effective": {"validFrom": "2026-01-01T00:00:00Z"},
+  "declaredInputs": [],
+  "declaredOutputs": ["eligible"],
+  "decisionType": "leave-eligibility",
+  "logic": {"hitPolicy": "first", "rows": [{"id": "default", "when": {}, "then": {"eligible": false}}]},
+  "engineRef": {"engine": "decisiontable"},
+  "metadata": {"owner": "People Operations", "createdBy": "rule-service", "createdAt": "2026-01-01T00:00:00Z"}
+}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/arrowhr/ruleengine/audit"
 	"github.com/arrowhr/ruleengine/fact"
+	"github.com/arrowhr/ruleengine/manifest"
 	"github.com/arrowhr/ruleengine/rule"
 	"github.com/arrowhr/ruleengine/store"
 	"github.com/arrowhr/ruleengine/telemetry"
@@ -68,6 +69,9 @@ func New(config Config, opts ...Option) (*Engine, error) {
 		if _, durable := resolved.decisionLogger.(audit.DurableDecisionLogger); !durable {
 			return nil, fmt.Errorf("%w: durable audit is required but the decision logger is best-effort", ErrConfig)
 		}
+	}
+	if config.RequireIdempotency && resolved.idempotencyStore == nil {
+		return nil, fmt.Errorf("%w: idempotency is required but no idempotency store was supplied", ErrConfig)
 	}
 	if config.Validation == ValidationOff {
 		// Loud rather than silent: a decision made on unvalidated input is not
@@ -149,7 +153,8 @@ func (e *Engine) reconcile() {
 				// The previous snapshot keeps serving, and the cache's
 				// staleness metric is what tells an operator how old it is.
 				e.options.logger.Warn("rule cache reconcile failed",
-					"tenant", e.config.Tenant, "domain", e.config.Domain, "error", err.Error())
+					"tenant", e.config.Tenant, "domain", e.config.Domain,
+					"errorType", fmt.Sprintf("%T", err))
 			}
 		}
 	}
@@ -163,9 +168,9 @@ func (e *Engine) rebuildFactResolver() error {
 	if snapshot == nil {
 		return ErrNotReady
 	}
-	resolver, err := fact.NewResolver(
+	resolver, err := fact.NewResolverWithTracer(
 		snapshot.Registry(), snapshot.Manifests(), e.options.executor,
-		e.options.natives, e.config.FactBudget, e.options.metrics,
+		e.options.natives, e.config.FactBudget, e.options.metrics, e.options.tracer,
 	)
 	if err != nil {
 		return err
@@ -240,9 +245,30 @@ func (e *Engine) Evaluate(ctx context.Context, request EvalRequest) (Decision, e
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	session := e.newSession(ctx)
+	point := Point{Key: request.Routing.RuleKey, DecisionType: ""}
+	if e.config.RequireIdempotency && validUUID(request.IdempotencyKey) {
+		stored, err := e.idempotent(ctx, request, []Point{point}, func(callCtx context.Context) (IdempotencyResult, error) {
+			decision, evaluateErr := e.evaluateOnce(callCtx, request, point)
+			return IdempotencyResult{Decisions: []Decision{decision}}, evaluateErr
+		})
+		if err != nil {
+			return Decision{}, err
+		}
+		if len(stored.Decisions) != 1 {
+			return Decision{}, &sanitizedOperationalError{
+				message: "idempotency store returned an invalid single-decision result",
+				cause:   ErrIdempotency,
+			}
+		}
+		return stored.Decisions[0], nil
+	}
+	return e.evaluateOnce(ctx, request, point)
+}
+
+func (e *Engine) evaluateOnce(ctx context.Context, request EvalRequest, point Point) (Decision, error) {
+	session := e.newSession(ctx, request)
 	defer session.finish()
-	return session.evaluate(ctx, request, Point{Key: request.Routing.RuleKey, DecisionType: ""})
+	return session.evaluate(request, point)
 }
 
 // Point is one decision a service wants made about a subject.
@@ -276,14 +302,34 @@ func (e *Engine) EvaluateAll(ctx context.Context, points []Point, request EvalRe
 	if len(points) == 0 {
 		return Results{}, fmt.Errorf("%w: at least one decision point is required", ErrConfig)
 	}
-	session := e.newSession(ctx)
+	if e.config.RequireIdempotency && validUUID(request.IdempotencyKey) {
+		stored, err := e.idempotent(ctx, request, points, func(callCtx context.Context) (IdempotencyResult, error) {
+			results, evaluateErr := e.evaluateAllOnce(callCtx, points, request)
+			return IdempotencyResult{Decisions: results.decisions, Optional: results.optional}, evaluateErr
+		})
+		if err != nil {
+			return Results{}, err
+		}
+		if len(stored.Decisions) != len(points) || len(stored.Optional) != len(points) {
+			return Results{}, &sanitizedOperationalError{
+				message: "idempotency store returned an invalid multi-decision result",
+				cause:   ErrIdempotency,
+			}
+		}
+		return Results{decisions: stored.Decisions, optional: stored.Optional}, nil
+	}
+	return e.evaluateAllOnce(ctx, points, request)
+}
+
+func (e *Engine) evaluateAllOnce(ctx context.Context, points []Point, request EvalRequest) (Results, error) {
+	session := e.newSession(ctx, request)
 	defer session.finish()
 
 	results := Results{decisions: make([]Decision, 0, len(points)), optional: make([]bool, 0, len(points))}
 	for _, point := range points {
 		pointRequest := request
 		pointRequest.Routing.RuleKey = point.Key
-		decision, err := session.evaluate(ctx, pointRequest, point)
+		decision, err := session.evaluate(pointRequest, point)
 		if err != nil {
 			return Results{}, err
 		}
@@ -355,15 +401,20 @@ func (r Results) All() []Decision {
 // session is one request's evaluation state: the fact session that makes
 // de-duplication span every point, and the span that covers the whole call.
 type session struct {
-	engine   *Engine
-	snapshot *store.Snapshot
-	facts    *fact.Session
-	span     telemetry.Span
+	engine       *Engine
+	ctx          context.Context
+	snapshot     *store.Snapshot
+	facts        *fact.Session
+	span         telemetry.Span
+	runManifests map[string]manifest.RunManifest
 }
 
-func (e *Engine) newSession(ctx context.Context) *session {
-	_, span := e.options.tracer.Start(ctx, telemetry.SpanEvaluate)
-	current := &session{engine: e, span: span}
+func (e *Engine) newSession(ctx context.Context, request EvalRequest) *session {
+	ctx = telemetry.ContextWithPropagation(ctx, telemetry.Propagation{
+		Traceparent: request.Traceparent, CorrelationID: request.CorrelationID,
+	})
+	traceContext, span := e.options.tracer.Start(ctx, telemetry.SpanEvaluate)
+	current := &session{engine: e, ctx: traceContext, span: span}
 	if runtime := e.runtimeSnapshot(); runtime != nil {
 		current.snapshot = runtime.store
 		if runtime.facts != nil {
@@ -382,6 +433,27 @@ func (s *session) refresh() {
 			s.facts = runtime.facts.NewSession()
 		}
 	}
+}
+
+// runManifest returns one immutable local view for the whole evaluation
+// session. EvaluateAll therefore cannot observe different manifest state
+// between decision points and performs only one local lookup per run ID.
+func (s *session) runManifest(tenant, runID string) (manifest.RunManifest, error) {
+	if run, found := s.runManifests[runID]; found {
+		if run.Tenant != tenant {
+			return manifest.RunManifest{}, fmt.Errorf("%w: run %q", store.ErrRunTenantMismatch, runID)
+		}
+		return run, nil
+	}
+	run, err := s.engine.versions.RunManifest(tenant, runID)
+	if err != nil {
+		return manifest.RunManifest{}, err
+	}
+	if s.runManifests == nil {
+		s.runManifests = make(map[string]manifest.RunManifest)
+	}
+	s.runManifests[runID] = run
+	return run, nil
 }
 
 func (s *session) finish() { s.span.End() }

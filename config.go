@@ -60,6 +60,7 @@ type Config struct {
 	// FailClosedDomains is retained for source compatibility. V2 default
 	// eligibility is controlled solely by exact, tenant-authorized
 	// RuleCatalog.defaults entries; no global domain allow/deny list is used.
+	//
 	// Deprecated: publish or omit a tenant catalog default instead.
 	FailClosedDomains []string
 	// CacheReloadInterval is how often the engine reconciles its cache in the
@@ -77,8 +78,18 @@ type Config struct {
 	TraceEnabled bool
 	// RequireDurableAudit refuses construction unless the configured decision
 	// logger implements audit.DurableDecisionLogger. Enable it for money,
-	// compliance, and any workflow whose decision record may not be lost.
+	// compliance, and any workflow whose decision record may not be lost. These
+	// high-risk records include exact effective inputs in addition to their hash
+	// so the decision can be reproduced; the audit store must be access-controlled.
 	RequireDurableAudit bool
+	// RequireIdempotency marks this engine's decisions as money-moving. Every
+	// request must carry a UUID idempotencyKey and an IdempotencyStore must be
+	// configured; retries return the first stored result without re-evaluation.
+	RequireIdempotency bool
+	// IdempotencyRetention controls how long completed keys remain reserved.
+	// Zero uses the safe minimum of 24 hours. A configured value below 24 hours
+	// is rejected; payroll services should normally choose a longer period.
+	IdempotencyRetention time.Duration
 }
 
 // defaultMaxCandidatesPerKey is generous enough that no sane rule set reaches
@@ -106,6 +117,15 @@ func (c Config) Validate() error {
 	}
 	if c.MaxCandidatesPerKey < 0 {
 		return fmt.Errorf("%w: max candidates per key must not be negative", ErrConfig)
+	}
+	if c.IdempotencyRetention < 0 {
+		return fmt.Errorf("%w: idempotency retention must not be negative", ErrConfig)
+	}
+	if c.IdempotencyRetention > 0 && c.IdempotencyRetention < minimumIdempotencyRetention {
+		return fmt.Errorf("%w: idempotency retention must be at least %s", ErrConfig, minimumIdempotencyRetention)
+	}
+	if c.RequireIdempotency && !c.RequireDurableAudit {
+		return fmt.Errorf("%w: money-moving idempotency requires durable audit", ErrConfig)
 	}
 	for _, domain := range c.FailClosedDomains {
 		if domain == "" {

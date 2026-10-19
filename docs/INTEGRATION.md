@@ -90,6 +90,30 @@ Prove it with `dataset.ConformanceSuite`. Until then, use
 Once, at start-up. Keep it; it is safe for concurrent use and its caches are
 why evaluation needs no network hop.
 
+Construct the Rule Service loader with an HTTPS endpoint and a client carrying
+the service's mTLS or JWT configuration:
+
+```go
+loader, err := servicestore.New(servicestore.Config{
+    BaseURL:          "https://rule-service.internal",
+    Service:          "leave",
+    Tenant:           tenantID,
+    Client:           serviceHTTPClient,
+    Headers:          map[string]string{"Authorization": "Bearer " + token},
+    MaxAttempts:      3,
+    RetryBackoff:     100 * time.Millisecond,
+    RequestTimeout:   5 * time.Second,
+    MaxResponseBytes: 32 << 20,
+})
+if err != nil { return err }
+```
+
+The loader refuses redirects so tenant and authorization data cannot be sent
+to another origin, accepts only JSON success responses, and leaves the last
+good cache intact when loading fails. Plain HTTP requires
+`AllowInsecureHTTP: true` and is restricted to loopback endpoints for local
+development. `New` remains lazy; the first network call occurs in `Reload`.
+
 ```go
 engine, err := ruleengine.New(ruleengine.Config{
     Tenant: tenantID,
@@ -103,7 +127,7 @@ engine, err := ruleengine.New(ruleengine.Config{
     RequireDurableAudit: true,
     CacheReloadInterval: 30 * time.Second,
 },
-    ruleengine.WithLoader(servicestore.New(...)),
+    ruleengine.WithLoader(loader),
     ruleengine.WithExecutor(myExecutor),
     ruleengine.WithDecisionLogger(auditLogger),
     ruleengine.WithMetrics(myMetrics),
@@ -115,6 +139,11 @@ if err := engine.Reload(ctx); err != nil { return err }
 if err := engine.Start(); err != nil { return err }   // background reconcile
 defer engine.Close()
 ```
+
+The tracer adapter must read `telemetry.PropagationFromContext` when it starts
+the root span, then return the SDK's span-bearing context. This preserves the
+request's W3C `traceparent` through every evaluation stage and fact call. See
+[OBSERVABILITY.md](OBSERVABILITY.md) for the complete metric and span contract.
 
 Then gate traffic on readiness, so the service never accepts a request it would
 only fail closed:
@@ -131,6 +160,58 @@ mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
 
 A batch process wants `CacheReloadInterval: 0` and no `Start()`, so its rules
 cannot change underneath a run.
+
+### Run manifests stay local
+
+Create one process-local manifest store at service startup and populate it
+from the run-open response or the service's distribution consumer before any
+employee in that run is evaluated:
+
+```go
+runManifests := manifest.NewInMemoryStore()
+if err := runManifests.Put(openedRunManifest); err != nil {
+    return fmt.Errorf("cache run manifest: %w", err)
+}
+
+engine, err := ruleengine.New(config,
+    ruleengine.WithLoader(loader),
+    ruleengine.WithManifestStore(runManifests),
+)
+```
+
+The Rule Service call or event handling belongs in the control path, not in
+`Evaluate`. The engine accepts only its local `InMemoryStore`; a missing
+manifest fails closed as `PINNED_VERSION_UNAVAILABLE`. One immutable manifest
+view supplies hierarchy, rule, and fact-source pins for the entire evaluation
+session, including every point in `EvaluateAll`.
+
+### Money-moving services
+
+Payroll disbursement, final settlement, and other operations that can move
+money must enable both safeguards and use an idempotency store shared by every
+replica:
+
+```go
+engine, err := ruleengine.New(ruleengine.Config{
+    Tenant:               tenantID,
+    Domain:               "payroll",
+    RequireDurableAudit:  true,
+    RequireIdempotency:   true,
+    IdempotencyRetention: 7 * 24 * time.Hour,
+},
+    ruleengine.WithDecisionLogger(outboxLogger),
+    ruleengine.WithIdempotencyStore(sharedIdempotencyStore),
+)
+```
+
+Generate one canonical RFC UUID when the business operation is created and
+reuse it on every retry. The first successful result is retained and replayed;
+the engine rejects the same key with different inputs as
+`ErrIdempotencyConflict`. The store's atomic `Do` operation must coalesce
+concurrent calls and preserve the complete `IdempotencyResult`. Use at least
+24 hours of retention and a longer period for payroll. Do not use
+`NewMemoryIdempotencyStore` in a replicated production service because its
+state is local to one process.
 
 [examples/leaveservice](../examples/leaveservice) is this, runnable.
 

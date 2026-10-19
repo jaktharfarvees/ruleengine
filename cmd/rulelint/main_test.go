@@ -93,6 +93,28 @@ func TestRejectsAnAmbiguousTieAtPublication(t *testing.T) {
 	if !strings.Contains(joined, "ambiguous") || !strings.Contains(joined, "publication is refused") {
 		t.Fatalf("the ambiguous pair was not rejected: %v", report.problems)
 	}
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var document map[string]any
+		if err := json.Unmarshal(data, &document); err != nil {
+			t.Fatal(err)
+		}
+		document["tieBreakPriority"] = 10
+		data, err = json.Marshal(document)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if report := lint(fixtureRoot, paths); len(report.problems) == 0 ||
+		!strings.Contains(strings.Join(report.problems, "\n"), "ambiguous") {
+		t.Fatalf("the equal-priority ambiguous pair was not rejected: %v", report.problems)
+	}
 
 	data, err := os.ReadFile(paths[1])
 	if err != nil {

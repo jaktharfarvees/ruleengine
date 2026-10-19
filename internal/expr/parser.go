@@ -142,8 +142,8 @@ func (p *parser) parsePrefix() (node, error) {
 		if err != nil {
 			return nil, err
 		}
-		if close := p.advance(); close.kind != tokenRightParen {
-			return nil, fmt.Errorf("expected ) at byte %d", close.pos)
+		if closing := p.advance(); closing.kind != tokenRightParen {
+			return nil, fmt.Errorf("expected ) at byte %d", closing.pos)
 		}
 		return value, nil
 	case tokenEOF:
@@ -172,8 +172,8 @@ func (p *parser) parseCall(name token) (node, error) {
 			p.advance()
 		}
 	}
-	if close := p.advance(); close.kind != tokenRightParen {
-		return nil, fmt.Errorf("expected ) after %s arguments at byte %d", name.text, close.pos)
+	if closing := p.advance(); closing.kind != tokenRightParen {
+		return nil, fmt.Errorf("expected ) after %s arguments at byte %d", name.text, closing.pos)
 	}
 	return callNode{name: name.text, arguments: arguments}, nil
 }

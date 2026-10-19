@@ -201,14 +201,9 @@ func TestFixtureBuilderSupportsEveryScopeShape(t *testing.T) {
 		Needs("requestedDays").Produces("allowed").
 		Row("within", map[string]string{"requestedDays": "<= 1"}, map[string]any{"allowed": true}).
 		Add().
-		Rule("leave", "validation", "exception").
-		ForEmployee("E9001", "approved by the CFO").
-		Needs("requestedDays").Produces("allowed").
-		Row("always", map[string]string{}, map[string]any{"allowed": true}).
-		Add().
 		MustBuild(t)
 
-	if len(bundle.Rules) != 2 {
+	if len(bundle.Rules) != 1 {
 		t.Fatalf("bundle has %d rules", len(bundle.Rules))
 	}
 	filtered := bundle.Rules[0]
@@ -223,10 +218,6 @@ func TestFixtureBuilderSupportsEveryScopeShape(t *testing.T) {
 	}
 	if filtered.Effective.ValidTo == nil {
 		t.Fatal("EffectiveUntil was not applied")
-	}
-	exception := bundle.Rules[1]
-	if exception.Scope.Anchor.Kind != rule.AnchorEmployee || exception.Scope.Anchor.Reason == "" {
-		t.Fatalf("employee anchor = %+v", exception.Scope.Anchor)
 	}
 }
 
@@ -304,9 +295,8 @@ func TestDecisionEqualsReportsEveryDifference(t *testing.T) {
 	failing := &recorder{TB: t}
 	ruletest.DecisionEquals(failing, decision, ruletest.Expectation{
 		Failed: true, RuleVersion: "1.0.0", ResolvedNodeID: "G001",
-		EmployeeException: true,
-		ReasonCodes:       []ruleengine.ReasonCode{ruleengine.ReasonNoRuleResolved},
-		Result:            map[string]any{"eligible": false, "missing": 1},
+		ReasonCodes: []ruleengine.ReasonCode{ruleengine.ReasonNoRuleResolved},
+		Result:      map[string]any{"eligible": false, "missing": 1},
 	})
 	if !failing.failed {
 		t.Fatal("a mismatched expectation passed")

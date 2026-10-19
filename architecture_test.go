@@ -80,7 +80,11 @@ func TestImportDirectionIsOneWay(t *testing.T) {
 // superseded six-level precedence model left no trace. Precedence comes from
 // the tenant's own hierarchy (D17), so these names must not reappear.
 func TestNoFixedPrecedenceVocabulary(t *testing.T) {
-	banned := []string{"LEGAL_ENTITY", "EMPLOYEE_GROUP", "PrecedenceLevel"}
+	banned := []string{
+		"LEGAL_ENTITY", "EMPLOYEE_GROUP", "PrecedenceLevel",
+		"AnchorEmployee", "EmployeeExceptionOrder", "IsEmployeeException", "ForEmployee",
+		`"kind":"employee"`, `"kind": "employee"`,
+	}
 	// GLOBAL and COUNTRY are banned as standalone level names; employmentCountry
 	// is an unrelated request field and must not trip the check.
 	bannedWords := []string{"GLOBAL", "COUNTRY"}
@@ -99,6 +103,11 @@ func TestNoFixedPrecedenceVocabulary(t *testing.T) {
 			return nil
 		}
 		if strings.HasSuffix(path, "architecture_test.go") {
+			return nil
+		}
+		if filepath.ToSlash(path) == "testdata/invalid/employee-anchor.json" {
+			// This is the negative contract fixture that proves the retired
+			// wire shape is rejected by both schema and Go validation.
 			return nil
 		}
 		content, err := os.ReadFile(path)

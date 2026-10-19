@@ -19,20 +19,15 @@ const (
 	reasonPrecedenceTieUnresolved = "PRECEDENCE_TIE_UNRESOLVED"
 )
 
-// AnchorOnPath reports whether an anchor covers the subject represented by
-// path and employeeID.
-func AnchorOnPath(anchor rule.Anchor, path []hierarchy.PathEntry, employeeID string) bool {
-	switch anchor.Kind {
-	case rule.AnchorEmployee:
-		return anchor.EmployeeID != "" && anchor.EmployeeID == employeeID
-	case rule.AnchorNode:
-		if anchor.NodeID == "" {
-			return false
-		}
-		for _, entry := range path {
-			if entry.NodeID == anchor.NodeID {
-				return true
-			}
+// AnchorOnPath reports whether a node anchor covers the subject represented by
+// path.
+func AnchorOnPath(anchor rule.Anchor, path []hierarchy.PathEntry) bool {
+	if anchor.Kind != rule.AnchorNode || anchor.NodeID == "" {
+		return false
+	}
+	for _, entry := range path {
+		if entry.NodeID == anchor.NodeID {
+			return true
 		}
 	}
 	return false
@@ -103,7 +98,7 @@ func resolveCandidate(candidate *Candidate, input Input, path []hierarchy.PathEn
 		candidate.Reason = "rule is not effective at the requested validity time"
 		return
 	}
-	precedence, onPath := precedenceOnPath(definition.EffectiveAnchor(), path, input.EmployeeID, input.Tenant, snapshot)
+	precedence, onPath := precedenceOnPath(definition.EffectiveAnchor(), path, input.Tenant, snapshot)
 	if !onPath {
 		candidate.EliminatedBy = EliminatedNotOnPath
 		candidate.Reason = "rule anchor does not cover the subject"
@@ -120,16 +115,7 @@ func resolveCandidate(candidate *Candidate, input Input, path []hierarchy.PathEn
 	}
 }
 
-func precedenceOnPath(anchor rule.Anchor, path []hierarchy.PathEntry, employeeID, tenant string, snapshot *hierarchy.Snapshot) (hierarchy.DerivedPrecedence, bool) {
-	if anchor.Kind == rule.AnchorEmployee {
-		if anchor.EmployeeID == "" || anchor.EmployeeID != employeeID {
-			return hierarchy.DerivedPrecedence{}, false
-		}
-		return hierarchy.DerivedPrecedence{
-			Order: hierarchy.EmployeeExceptionOrder, Depth: hierarchy.EmployeeExceptionOrder,
-			IsEmployeeException: true,
-		}, true
-	}
+func precedenceOnPath(anchor rule.Anchor, path []hierarchy.PathEntry, tenant string, snapshot *hierarchy.Snapshot) (hierarchy.DerivedPrecedence, bool) {
 	if anchor.Kind != rule.AnchorNode || anchor.NodeID == "" {
 		return hierarchy.DerivedPrecedence{}, false
 	}
@@ -151,9 +137,6 @@ func precedenceOnPath(anchor rule.Anchor, path []hierarchy.PathEntry, employeeID
 
 func sortCandidates(candidates []Candidate) {
 	slices.SortFunc(candidates, func(left, right Candidate) int {
-		if order := cmp.Compare(right.Precedence.Order, left.Precedence.Order); order != 0 {
-			return order
-		}
 		if depth := cmp.Compare(right.Precedence.Depth, left.Precedence.Depth); depth != 0 {
 			return depth
 		}
@@ -181,27 +164,6 @@ func sortCandidates(candidates []Candidate) {
 }
 
 func selectWinner(candidates []Candidate) (winner int, tied []int, priorityUsed bool) {
-	winner = -1
-	employeeIndex, employeeCount := -1, 0
-	for index := range candidates {
-		if survives(candidates[index]) && candidates[index].Precedence.IsEmployeeException {
-			employeeIndex = index
-			employeeCount++
-		}
-	}
-	if employeeCount == 1 {
-		return employeeIndex, nil, false
-	}
-	if employeeCount > 1 {
-		tied = make([]int, 0, employeeCount)
-		for index := range candidates {
-			if survives(candidates[index]) && candidates[index].Precedence.IsEmployeeException {
-				tied = append(tied, index)
-			}
-		}
-		return -1, tied, false
-	}
-
 	top := -1
 	for index := range candidates {
 		if survives(candidates[index]) {
@@ -212,7 +174,6 @@ func selectWinner(candidates []Candidate) (winner int, tied []int, priorityUsed 
 	if top < 0 {
 		return -1, nil, false
 	}
-	topOrder := candidates[top].Precedence.Order
 	topDepth := candidates[top].Precedence.Depth
 	mostFilters := filterCount(candidates[top])
 	groupCount := 0
@@ -222,7 +183,7 @@ func selectWinner(candidates []Candidate) (winner int, tied []int, priorityUsed 
 	minimumIndex := -1
 	for index := range candidates {
 		candidate := candidates[index]
-		if !inTopGroup(candidate, topOrder, topDepth, mostFilters) {
+		if !inTopGroup(candidate, topDepth, mostFilters) {
 			continue
 		}
 		groupCount++
@@ -252,7 +213,7 @@ func selectWinner(candidates []Candidate) (winner int, tied []int, priorityUsed 
 	tied = make([]int, 0, tieCount)
 	for index := range candidates {
 		candidate := candidates[index]
-		if !inTopGroup(candidate, topOrder, topDepth, mostFilters) {
+		if !inTopGroup(candidate, topDepth, mostFilters) {
 			continue
 		}
 		if allPrioritized {
@@ -338,9 +299,9 @@ func resolveTie(result *Result, indexes []int, priorityUsed bool) {
 
 func survives(candidate Candidate) bool { return candidate.EliminatedBy == EliminatedNone }
 
-func inTopGroup(candidate Candidate, order, depth, filters int) bool {
-	return survives(candidate) && candidate.Precedence.Order == order &&
-		candidate.Precedence.Depth == depth && filterCount(candidate) == filters
+func inTopGroup(candidate Candidate, depth, filters int) bool {
+	return survives(candidate) && candidate.Precedence.Depth == depth &&
+		filterCount(candidate) == filters
 }
 
 func filterCount(candidate Candidate) int {
@@ -370,7 +331,7 @@ func candidateKey(candidate Candidate) string {
 	}
 	slices.Sort(parts)
 	return string(definition.RuleKey) + "\x1f" + definition.Version + "\x1f" +
-		string(anchor.Kind) + "\x1f" + anchor.NodeID + "\x1f" + anchor.EmployeeID + "\x1f" + strings.Join(parts, "\x1e")
+		string(anchor.Kind) + "\x1f" + anchor.NodeID + "\x1f" + strings.Join(parts, "\x1e")
 }
 
 func candidateVersion(candidate Candidate) string {
@@ -381,8 +342,7 @@ func candidateVersion(candidate Candidate) string {
 }
 
 func sameRankAndSpecificity(left, right Candidate) bool {
-	return left.Precedence.Order == right.Precedence.Order &&
-		left.Precedence.Depth == right.Precedence.Depth &&
+	return left.Precedence.Depth == right.Precedence.Depth &&
 		filterCount(left) == filterCount(right)
 }
 
@@ -401,11 +361,6 @@ func tieBreakReason(winner, loser Candidate) string {
 func lowerOrderReason(winner, loser Candidate) string {
 	var reason strings.Builder
 	reason.Grow(96)
-	if winner.Precedence.IsEmployeeException {
-		reason.WriteString("Employee exception outranks ")
-		writePrecedenceLabel(&reason, loser.Precedence)
-		return reason.String()
-	}
 	writePrecedenceLabel(&reason, winner.Precedence)
 	if winner.Precedence.Order == loser.Precedence.Order {
 		reason.WriteString(" at depth ")
@@ -432,10 +387,6 @@ func topRankReason(top, loser Candidate) string {
 }
 
 func writePrecedenceLabel(builder *strings.Builder, precedence hierarchy.DerivedPrecedence) {
-	if precedence.IsEmployeeException {
-		builder.WriteString("Employee exception")
-		return
-	}
 	name := precedence.TypeName
 	builder.WriteString(name)
 	builder.WriteByte('(')

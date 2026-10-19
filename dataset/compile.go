@@ -243,7 +243,7 @@ func compileFilters(filters []rule.FilterCondition, manifest Manifest, params Pa
 // compileValues normalises one filter's operand into the scalar list a
 // Predicate carries, substituting tokens and type-checking against the column.
 func compileValues(where string, filter rule.FilterCondition, column Column, manifest Manifest, params Params) ([]any, error) {
-	wantCount := 0
+	var wantCount int
 	switch filter.Op {
 	case rule.FilterEquals:
 		wantCount = 1

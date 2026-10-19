@@ -181,7 +181,7 @@ func rowMatches(row Row, predicate dataset.Predicate) (bool, error) {
 	// The tenant predicate is applied like any other: it filters on a column
 	// the rows carry, which is the whole point of injecting it.
 	actual, present := row[predicate.Column]
-	switch predicate.Op {
+	switch predicate.Op { //nolint:exhaustive // Non-existence operators require the value below.
 	case rule.FilterExists:
 		return present, nil
 	case rule.FilterNotExists:
@@ -285,11 +285,14 @@ func aggregate(spec dataset.AggregateSpec, rows []Row, manifest dataset.Manifest
 			return nil, nil
 		}
 		return rows[0][spec.On], nil
+	case dataset.AggregateSum, dataset.AggregateMax, dataset.AggregateMin, dataset.AggregateAvg:
+		if len(rows) == 0 {
+			return nil, nil
+		}
+		return numericAggregate(spec, rows, manifest)
+	default:
+		return nil, fmt.Errorf("executor cannot apply aggregate %q", spec.Fn)
 	}
-	if len(rows) == 0 {
-		return nil, nil
-	}
-	return numericAggregate(spec, rows, manifest)
 }
 
 func numericAggregate(spec dataset.AggregateSpec, rows []Row, manifest dataset.Manifest) (any, error) {

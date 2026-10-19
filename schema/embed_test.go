@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/arrowhr/ruleengine/dataset"
+	"github.com/arrowhr/ruleengine/internal/schemacompat"
 	"github.com/arrowhr/ruleengine/registry"
 	"github.com/arrowhr/ruleengine/rule"
 )
@@ -35,59 +36,44 @@ func TestEmbeddedSchemas(t *testing.T) {
 	}
 }
 
-// TestV2CompatibilityBaseline is the additive-only gate for the published v2
-// boundary. Removing one of these required fields or changing its schema URN
-// is a breaking change and must be introduced under a new major schema folder.
+// TestV2CompatibilityBaseline exercises the same snapshot comparison as the
+// schema-compat command, so ordinary package tests cannot bypass governance.
 func TestV2CompatibilityBaseline(t *testing.T) {
-	baseline := map[string]struct {
-		id       string
-		required []string
-	}{
-		EvaluationRequest:  {"urn:arrowhr:schema:evaluation-request:v2", []string{"schemaVersion", "tenant", "routing", "subject", "context", "asOf"}},
-		EvaluationResponse: {"urn:arrowhr:schema:evaluation-response:v2", []string{"decisionId", "reasonCodes", "failed", "asOf", "validAt", "libVersion"}},
-		RuleDefinition:     {"urn:arrowhr:schema:rule-definition:v2", []string{"ruleKey", "domain", "ruleSet", "name", "version", "changeType", "status", "tenant", "anchor", "effective", "declaredInputs", "declaredOutputs", "decisionType", "logic", "engineRef", "metadata"}},
-		FieldRegistry:      {"urn:arrowhr:schema:field-registry:v2", nil},
-		RuleCatalog:        {"urn:arrowhr:schema:rule-catalog:v2", []string{"catalogManifestId", "tenant", "entries"}},
-		DatasetManifest:    {"urn:arrowhr:schema:dataset-manifest:v2", []string{"datasetId", "sourceService", "domain", "status", "maxWindowDays", "allowedAggregates", "columns"}},
+	expected := []string{
+		DatasetManifest,
+		EvaluationRequest,
+		EvaluationResponse,
+		FieldRegistry,
+		RuleCatalog,
+		RuleDefinition,
 	}
-	for name, contract := range baseline {
-		data, err := Bytes(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var document struct {
-			ID       string   `json:"$id"`
-			Required []string `json:"required"`
-		}
-		if err := json.Unmarshal(data, &document); err != nil {
-			t.Fatal(err)
-		}
-		if document.ID != contract.id {
-			t.Errorf("%s $id = %q, want %q", name, document.ID, contract.id)
-		}
-		for _, field := range contract.required {
-			if !contains(document.Required, field) {
-				t.Errorf("%s removed required v2 field %q", name, field)
-			}
+	entries, err := os.ReadDir("compat/v2/initial")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var baselineNames []string
+	for _, entry := range entries {
+		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".json" {
+			baselineNames = append(baselineNames, entry.Name())
 		}
 	}
-	ruleData, _ := Bytes(RuleDefinition)
-	if bytes.Contains(ruleData, []byte(`"scope"`)) || bytes.Contains(ruleData, []byte(`"precedence"`)) {
-		t.Fatal("v2 rule schema reintroduced retired fixed-level precedence fields")
+	sort.Strings(baselineNames)
+	if len(baselineNames) != len(expected) {
+		t.Fatalf("published v2 baseline contains %d schemas, want %d: %v", len(baselineNames), len(expected), baselineNames)
 	}
-	registryData, _ := Bytes(FieldRegistry)
-	if !bytes.Contains(registryData, []byte(`"required": ["fields"]`)) {
-		t.Fatal("field registry removed the required fields envelope")
+	for index := range expected {
+		if baselineNames[index] != expected[index] {
+			t.Fatalf("published v2 baseline schemas = %v, want %v", baselineNames, expected)
+		}
 	}
-}
 
-func contains(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
-		}
+	violations, err := schemacompat.CheckSnapshots("compat/v2", "v2")
+	if err != nil {
+		t.Fatal(err)
 	}
-	return false
+	for _, violation := range violations {
+		t.Error(violation)
+	}
 }
 
 // TestRuleFixtureRoundTripAndValidation covers every committed rule fixture.
@@ -147,6 +133,7 @@ func TestInvalidRuleFixtures(t *testing.T) {
 		shape      bool
 	}{
 		{name: "missing anchor value", file: "no-anchor.json", shape: true},
+		{name: "retired employee anchor", file: "employee-anchor.json", shape: true},
 		{name: "authored precedence", file: "precedence-field-present.json"},
 	}
 	for _, tt := range tests {
@@ -173,8 +160,9 @@ func TestInvalidRuleFixtures(t *testing.T) {
 
 func TestSchemaExamples(t *testing.T) {
 	tests := []struct{ name, document string }{
-		{EvaluationRequest, `{"schemaVersion":2,"tenant":{"id":"RWB"},"routing":{"domain":"leave","ruleSet":"eligibility","name":"min-service","ruleKey":"urn:arrowhr:rule:leave:eligibility:min-service:v1"},"subject":{"type":"employee","identifier":{"system":"hr","value":"E1","idType":"employeeId"},"nodeId":"BR001"},"context":{},"asOf":"2026-10-14T08:00:00Z"}`},
-		{EvaluationResponse, `{"decisionId":"d1","reasonCodes":["OK"],"failed":false,"asOf":"2026-10-14T08:00:00Z","validAt":"2026-10-14T08:00:00Z","libVersion":"0.0.0-dev"}`},
+		{EvaluationRequest, `{"schemaVersion":2,"tenant":{"id":"RWB"},"routing":{"domain":"leave","ruleKey":"urn:arrowhr:rule:leave:eligibility:min-service:v1"},"subject":{"type":"employee","identifier":{"system":"urn:arrowhr:ns:employee-id","value":"E1","idType":"employeeId"},"nodeId":"BR001"},"context":{},"asOf":"2026-10-14T08:00:00Z"}`},
+		{EvaluationResponse, `{"decisionId":"d1","ruleKey":"urn:arrowhr:rule:leave:eligibility:min-service:v1","ruleVersion":"1.0.0","decisionType":"leave-eligibility","result":{"eligible":true},"reasonCodes":["OK"],"resolvedAt":"C002","evaluated":[{"ruleKey":"urn:arrowhr:rule:leave:eligibility:min-service:v1","ruleVersion":"1.0.0","anchorNodeId":"C002","order":1,"depth":1,"onPath":true,"filtersMatched":true,"winner":true}],"anchorPath":["G001","C002","D002","BR001"],"failed":false,"asOf":"2026-10-14T08:00:00Z","validAt":"2026-10-14T08:00:00Z","libVersion":"0.0.0-dev"}`},
+		{RuleDefinition, `{"ruleKey":"urn:arrowhr:rule:leave:eligibility:min-service:v1","domain":"leave","ruleSet":"eligibility","name":"min-service","version":"1.0.0","changeType":"MAJOR","status":"active","tenant":"RWB","anchor":{"nodeId":"G001"},"effective":{"validFrom":"2026-01-01T00:00:00Z"},"declaredInputs":[],"declaredOutputs":["eligible"],"decisionType":"leave-eligibility","logic":{"hitPolicy":"first","rows":[{"id":"default","when":{},"then":{"eligible":true}}]},"engineRef":{"engine":"decisiontable"},"metadata":{"owner":"People Operations","createdBy":"rule-service","createdAt":"2026-01-01T00:00:00Z"}}`},
 		{FieldRegistry, `{"fields":[{"name":"eligible","domain":"leave","dataType":"boolean","pii":false,"sourceService":"leave","status":"active","role":"output","effective":{}}]}`},
 		{DatasetManifest, `{"datasetId":"leave.applications","sourceService":"leave","domain":"leave","status":"published","maxWindowDays":366,"allowedAggregates":["sum"],"columns":[{"name":"employeeId","dataType":"string","filterable":true,"aggregatable":false,"windowable":false,"pii":false}]}`},
 		{RuleCatalog, `{"catalogManifestId":"RWB-2026-01","tenant":"RWB","entries":[{"ruleKey":"urn:arrowhr:rule:leave:eligibility:min-service:v1","domain":"leave","ruleSet":"eligibility","anchorNodeId":"G001","effective":{"validFrom":"2026-01-01T00:00:00Z"},"decisionType":"leave-eligibility","loaderKey":"rules/leave/min-service.json"}]}`},
@@ -185,6 +173,55 @@ func TestSchemaExamples(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if err := Validate(tt.name, []byte(tt.document)); err != nil {
 				t.Fatalf("Validate() error = %v", err)
+			}
+		})
+	}
+}
+
+func TestV2SchemasRejectContractViolations(t *testing.T) {
+	tests := []struct {
+		name, schema, document string
+	}{
+		{
+			name:     "request requires exact rule key",
+			schema:   EvaluationRequest,
+			document: `{"schemaVersion":2,"tenant":{"id":"RWB"},"routing":{"domain":"leave"},"subject":{"type":"employee","identifier":{"system":"urn:arrowhr:ns:employee-id","value":"E1","idType":"employeeId"},"nodeId":"BR001"},"context":{},"asOf":"2026-10-14T08:00:00Z"}`,
+		},
+		{
+			name:     "request fact pins require string versions",
+			schema:   EvaluationRequest,
+			document: `{"schemaVersion":2,"tenant":{"id":"RWB"},"routing":{"domain":"leave","ruleKey":"urn:arrowhr:rule:leave:eligibility:min-service:v1"},"subject":{"type":"employee","identifier":{"system":"urn:arrowhr:ns:employee-id","value":"E1","idType":"employeeId"},"nodeId":"BR001"},"context":{},"factSourcePins":{"serviceMonths":2},"asOf":"2026-10-14T08:00:00Z"}`,
+		},
+		{
+			name:     "successful response requires explainability",
+			schema:   EvaluationResponse,
+			document: `{"decisionId":"d1","reasonCodes":["OK"],"failed":false,"asOf":"2026-10-14T08:00:00Z","validAt":"2026-10-14T08:00:00Z","libVersion":"0.0.0-dev"}`,
+		},
+		{
+			name:     "rule requires anchor node",
+			schema:   RuleDefinition,
+			document: `{"ruleKey":"urn:arrowhr:rule:leave:eligibility:min-service:v1","domain":"leave","ruleSet":"eligibility","name":"min-service","version":"1.0.0","changeType":"MAJOR","status":"active","tenant":"RWB","anchor":{},"effective":{"validFrom":"2026-01-01T00:00:00Z"},"declaredInputs":[],"declaredOutputs":["eligible"],"decisionType":"leave-eligibility","logic":{"hitPolicy":"first","rows":[{"id":"default","when":{},"then":{"eligible":true}}]},"engineRef":{"engine":"decisiontable"},"metadata":{"owner":"People Operations","createdBy":"rule-service","createdAt":"2026-01-01T00:00:00Z"}}`,
+		},
+		{
+			name:     "derived field requires expression",
+			schema:   FieldRegistry,
+			document: `{"fields":[{"name":"serviceMonths","domain":"leave","dataType":"integer","pii":false,"sourceService":"employee","status":"active","role":"input","factSource":{"kind":"derived"},"effective":{}}]}`,
+		},
+		{
+			name:     "catalog entry requires anchor node",
+			schema:   RuleCatalog,
+			document: `{"catalogManifestId":"RWB-2026-01","tenant":"RWB","entries":[{"ruleKey":"urn:arrowhr:rule:leave:eligibility:min-service:v1","domain":"leave","ruleSet":"eligibility","effective":{"validFrom":"2026-01-01T00:00:00Z"},"decisionType":"leave-eligibility","loaderKey":"rules/leave/min-service.json"}]}`,
+		},
+		{
+			name:     "dataset aggregate list is unique",
+			schema:   DatasetManifest,
+			document: `{"datasetId":"leave.applications","sourceService":"leave","domain":"leave","status":"published","maxWindowDays":366,"allowedAggregates":["sum","sum"],"columns":[{"name":"employeeId","dataType":"string","filterable":true,"aggregatable":false,"windowable":false,"pii":false}]}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := Validate(tt.schema, []byte(tt.document)); err == nil {
+				t.Fatal("invalid v2 contract was accepted")
 			}
 		})
 	}

@@ -94,7 +94,7 @@ func containsFloat(value reflect.Value) bool {
 	if !value.IsValid() {
 		return false
 	}
-	switch value.Kind() {
+	switch value.Kind() { //nolint:exhaustive // All other kinds cannot contain a float.
 	case reflect.Float32, reflect.Float64:
 		return true
 	case reflect.Interface, reflect.Pointer:
@@ -124,7 +124,7 @@ func containsUncarriable(value reflect.Value) bool {
 	if !value.IsValid() {
 		return false
 	}
-	switch value.Kind() {
+	switch value.Kind() { //nolint:exhaustive // All other kinds are JSON-carriable scalars.
 	case reflect.Func, reflect.Chan, reflect.UnsafePointer:
 		return true
 	case reflect.Interface, reflect.Pointer:
@@ -159,41 +159,41 @@ func cloneReflect(value reflect.Value) reflect.Value {
 		if value.IsNil() {
 			return reflect.Zero(value.Type())
 		}
-		copy := reflect.New(value.Type()).Elem()
-		copy.Set(cloneReflect(value.Elem()))
-		return copy
+		cloned := reflect.New(value.Type()).Elem()
+		cloned.Set(cloneReflect(value.Elem()))
+		return cloned
 	case reflect.Pointer:
 		if value.IsNil() {
 			return reflect.Zero(value.Type())
 		}
-		copy := reflect.New(value.Elem().Type())
-		copy.Elem().Set(cloneReflect(value.Elem()))
-		return copy
+		cloned := reflect.New(value.Elem().Type())
+		cloned.Elem().Set(cloneReflect(value.Elem()))
+		return cloned
 	case reflect.Slice:
 		if value.IsNil() {
 			return reflect.Zero(value.Type())
 		}
-		copy := reflect.MakeSlice(value.Type(), value.Len(), value.Len())
+		cloned := reflect.MakeSlice(value.Type(), value.Len(), value.Len())
 		for index := 0; index < value.Len(); index++ {
-			copy.Index(index).Set(cloneReflect(value.Index(index)))
+			cloned.Index(index).Set(cloneReflect(value.Index(index)))
 		}
-		return copy
+		return cloned
 	case reflect.Array:
-		copy := reflect.New(value.Type()).Elem()
+		cloned := reflect.New(value.Type()).Elem()
 		for index := 0; index < value.Len(); index++ {
-			copy.Index(index).Set(cloneReflect(value.Index(index)))
+			cloned.Index(index).Set(cloneReflect(value.Index(index)))
 		}
-		return copy
+		return cloned
 	case reflect.Map:
 		if value.IsNil() {
 			return reflect.Zero(value.Type())
 		}
-		copy := reflect.MakeMapWithSize(value.Type(), value.Len())
+		cloned := reflect.MakeMapWithSize(value.Type(), value.Len())
 		iterator := value.MapRange()
 		for iterator.Next() {
-			copy.SetMapIndex(iterator.Key(), cloneReflect(iterator.Value()))
+			cloned.SetMapIndex(iterator.Key(), cloneReflect(iterator.Value()))
 		}
-		return copy
+		return cloned
 	default:
 		return value
 	}

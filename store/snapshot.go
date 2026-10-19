@@ -266,8 +266,8 @@ func cloneDefinitions(source []*rule.RuleDefinition) []*rule.RuleDefinition {
 		if definition == nil {
 			continue
 		}
-		copy := cloneRule(*definition)
-		result[index] = &copy
+		cloned := cloneRule(*definition)
+		result[index] = &cloned
 	}
 	return result
 }

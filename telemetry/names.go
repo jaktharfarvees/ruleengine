@@ -90,3 +90,12 @@ const (
 	// LabelKind is a fact-source kind.
 	LabelKind = "kind"
 )
+
+// Span attribute keys. Values attached by the library are bounded contract
+// names or identifiers already present in the trace; fact and subject values
+// are never attached.
+const (
+	AttrReasonCode = "rule.reason_code"
+	AttrField      = "rule.field"
+	AttrFactKind   = "rule.fact_kind"
+)

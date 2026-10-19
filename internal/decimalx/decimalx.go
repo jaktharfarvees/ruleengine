@@ -284,5 +284,8 @@ func decimalScale(text string) int32 {
 	if scale < 0 {
 		return 0
 	}
+	if scale > 1<<31-1 {
+		return 1<<31 - 1
+	}
 	return int32(scale)
 }

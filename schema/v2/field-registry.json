@@ -3,10 +3,10 @@
   "$id": "urn:arrowhr:schema:field-registry:v2",
   "title": "Field Registry",
   "anyOf": [
-    {"type": "array", "items": {"$ref": "#/$defs/field"}},
+    {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/field"}},
     {
       "type": "object", "additionalProperties": false, "required": ["fields"],
-      "properties": {"fields": {"type": "array", "items": {"$ref": "#/$defs/field"}}}
+      "properties": {"fields": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/field"}}}
     }
   ],
   "$defs": {
@@ -18,32 +18,79 @@
         "domain": {"type": "string", "minLength": 1},
         "dataType": {"type": "string", "enum": ["string", "integer", "decimal", "number", "boolean", "date", "datetime", "enum", "money"]},
         "unit": {"type": "string"},
-        "allowedValues": {"type": "array", "items": {"type": "string"}},
+        "allowedValues": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
         "pii": {"type": "boolean"},
         "sourceService": {"type": "string", "minLength": 1},
         "description": {"type": "string"},
-        "status": {"type": "string"},
+        "status": {"type": "string", "minLength": 1},
         "role": {"type": "string", "enum": ["input", "output", "subjectAttribute"]},
         "factSource": {"$ref": "#/$defs/factSource"},
         "factSourceVersion": {"type": "string"},
-        "effective": {"type": "object"},
+        "effective": {"$ref": "#/$defs/effective"},
         "updatedBy": {"type": "string"},
         "updatedAt": {"type": "string", "format": "date-time"}
       }
     },
     "factSource": {
       "type": "object", "additionalProperties": false, "required": ["kind"],
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"const": "derived"}}, "required": ["kind"]},
+          "then": {"required": ["expression"]}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "native"}}, "required": ["kind"]},
+          "then": {"required": ["builderFn"]}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "dataset"}}, "required": ["kind"]},
+          "then": {"required": ["datasetId", "aggregate"]}
+        }
+      ],
       "properties": {
         "kind": {"type": "string", "enum": ["passed", "derived", "native", "dataset"]},
         "datasetId": {"type": "string", "minLength": 1},
-        "filter": {"type": "array", "items": {"type": "object"}},
-        "window": {"type": "object"},
-        "aggregate": {"type": "object"},
+        "filter": {"type": "array", "items": {"$ref": "#/$defs/filter"}},
+        "window": {"$ref": "#/$defs/window"},
+        "aggregate": {"$ref": "#/$defs/aggregate"},
         "expression": {"type": "string", "minLength": 1},
         "builderFn": {"type": "string", "minLength": 1},
         "onEmpty": {},
         "notes": {"type": "string"},
-        "version": {"type": "string"}
+        "version": {"type": "string", "minLength": 1}
+      }
+    },
+    "effective": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "validFrom": {"type": "string", "format": "date-time"},
+        "validTo": {"type": "string", "format": "date-time"}
+      }
+    },
+    "filter": {
+      "type": "object", "additionalProperties": false, "required": ["attribute", "op"],
+      "properties": {
+        "attribute": {"type": "string", "minLength": 1},
+        "op": {"type": "string", "enum": ["equals", "in", "notIn", "range", "exists", "notExists"]},
+        "value": {}
+      }
+    },
+    "window": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "column": {"type": "string", "minLength": 1},
+        "relativeTo": {"type": "string", "enum": ["$asOf", "$validAt"]},
+        "lastDays": {"type": "integer", "minimum": 1},
+        "fromColumn": {"type": "string", "minLength": 1},
+        "toColumn": {"type": "string", "minLength": 1}
+      }
+    },
+    "aggregate": {
+      "type": "object", "additionalProperties": false, "required": ["fn"],
+      "properties": {
+        "fn": {"type": "string", "enum": ["count", "sum", "avg", "min", "max", "exists", "latest", "streak"]},
+        "column": {"type": "string", "minLength": 1},
+        "unit": {"type": "string", "minLength": 1}
       }
     }
   }

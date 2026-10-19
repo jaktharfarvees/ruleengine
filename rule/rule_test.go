@@ -75,7 +75,7 @@ func TestValidate(t *testing.T) {
 		{"invalid status", func(r *RuleDefinition) { r.Status = "unknown" }},
 		{"invalid effective", func(r *RuleDefinition) { r.Effective.ValidFrom = time.Time{} }},
 		{"node anchor missing node", func(r *RuleDefinition) { r.Scope.Anchor.NodeID = "" }},
-		{"employee missing reason", func(r *RuleDefinition) { r.Scope.Anchor = Anchor{Kind: AnchorEmployee, EmployeeID: "E1"} }},
+		{"retired employee anchor", func(r *RuleDefinition) { r.Scope.Anchor = Anchor{Kind: AnchorKind("employee")} }},
 		{"invalid anchor", func(r *RuleDefinition) { r.Scope.Anchor.Kind = "other" }},
 		{"empty filter attribute", func(r *RuleDefinition) { r.Scope.Filters = []FilterCondition{{Op: FilterEquals, Value: "x"}} }},
 		{"empty in", func(r *RuleDefinition) {
@@ -135,11 +135,5 @@ func TestValidationErrorAndValidFilterShapes(t *testing.T) {
 		if err := rule.Validate(); err != nil {
 			t.Fatalf("Validate() rejected valid filter %#v: %v", filter, err)
 		}
-	}
-
-	rule := validRule()
-	rule.Scope.Anchor = Anchor{Kind: AnchorEmployee, EmployeeID: "E1", Reason: "contractual exception"}
-	if err := rule.Validate(); err != nil {
-		t.Fatalf("Validate() rejected valid employee anchor: %v", err)
 	}
 }

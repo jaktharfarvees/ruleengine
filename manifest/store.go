@@ -1,7 +1,6 @@
 package manifest
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -17,25 +16,22 @@ var (
 	ErrAlreadyClosed = errors.New("run manifest already closed")
 )
 
-// Store is the read-only contract version resolution depends on.
+// Reader is the process-local, non-blocking lookup contract used during
+// evaluation. Implementations must not perform network or database I/O. A
+// service synchronizes manifests into local memory before evaluating a run.
 //
-// It takes a context and returns an error because a run manifest is frozen by
-// the Rule Service, so a consumer will read one over the network from inside a
-// decision. Without the context such a read could not honour the decision's
-// deadline; without the error, "this run has no manifest" would be
-// indistinguishable from "the manifest store is unreachable", and those need
-// opposite responses — the first fails the decision closed as
-// PINNED_VERSION_UNAVAILABLE, the second is an infrastructure fault to retry
-// or alert on.
-type Store interface {
-	Get(ctx context.Context, runID string) (RunManifest, bool, error)
+// Missing data fails the decision closed as PINNED_VERSION_UNAVAILABLE; remote
+// synchronization errors belong outside Evaluate and retain their own error
+// handling, retry, and observability policy.
+type Reader interface {
+	Get(runID string) (RunManifest, bool)
 }
 
-// InMemoryStore is a concurrency-safe in-memory Store. Returned manifests are
+// InMemoryStore is a concurrency-safe process-local Reader. Returned manifests are
 // defensive copies, so pins cannot change after a run opens.
 //
-// It is the implementation a service uses until run manifests are served by the
-// Rule Service, and the one the library's own tests run against.
+// Services populate it from run-open responses or distribution events before
+// evaluation; the rule-engine hot path reads only this local copy.
 type InMemoryStore struct {
 	mu   sync.RWMutex
 	runs map[string]RunManifest
@@ -69,22 +65,15 @@ func (s *InMemoryStore) Put(manifest RunManifest) error {
 	return nil
 }
 
-// Get returns a defensive copy of a run manifest. An in-memory read cannot
-// fail, so the error is always nil; it exists for the remote implementations
-// this interface is shaped for.
-func (s *InMemoryStore) Get(ctx context.Context, runID string) (RunManifest, bool, error) {
+// Get returns a defensive copy of a locally cached run manifest.
+func (s *InMemoryStore) Get(runID string) (RunManifest, bool) {
 	if s == nil {
-		return RunManifest{}, false, fmt.Errorf("manifest store is nil")
-	}
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
-			return RunManifest{}, false, err
-		}
+		return RunManifest{}, false
 	}
 	s.mu.RLock()
 	manifest, found := s.runs[runID]
 	s.mu.RUnlock()
-	return clone(manifest), found, nil
+	return clone(manifest), found
 }
 
 // Close marks a run closed without changing any pin. Repeating the same close

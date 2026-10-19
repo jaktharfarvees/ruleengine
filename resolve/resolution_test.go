@@ -48,45 +48,57 @@ func TestRT03RootBaselineApplies(t *testing.T) {
 	}
 }
 
-func TestRT04EmployeeExceptionWins(t *testing.T) {
-	rules := []*rule.RuleDefinition{
-		nodeRule("root", "G001"),
-		nodeRule("company", "C002"),
-		nodeRule("department", "D002"),
-		nodeRule("branch", "BR001"),
-		employeeRule("employee", "E9001"),
-	}
-	result := resolve.Resolve(inputAt("BR001"), rules, loadHierarchy(t, "rwb.json"))
-	assertWinner(t, result, rules[4])
-	if !result.Winner.Precedence.IsEmployeeException {
-		t.Fatal("employee winner lacks employee-exception precedence")
-	}
-	for _, definition := range rules[:4] {
-		if candidateFor(t, result, definition).EliminatedBy != resolve.EliminatedLowerOrder {
-			t.Fatalf("node rule %q was not lower-order", definition.Name)
-		}
+func TestRT04RetiredEmployeeAnchorCannotWin(t *testing.T) {
+	root := nodeRule("root", "G001")
+	retired := nodeRule("retired-employee-anchor", "")
+	retired.Scope.Anchor = rule.Anchor{Kind: rule.AnchorKind("employee")}
+	result := resolve.Resolve(inputAt("BR001"), []*rule.RuleDefinition{retired, root}, loadHierarchy(t, "rwb.json"))
+	assertWinner(t, result, root)
+	if candidateFor(t, result, retired).EliminatedBy != resolve.EliminatedNotOnPath {
+		t.Fatalf("retired anchor candidate = %#v", candidateFor(t, result, retired))
 	}
 }
 
 func TestRT05OffPathAnchorNeverWins(t *testing.T) {
+	root := nodeRule("root", "G001")
 	offPath := nodeRule("off-path", "BR003")
-	result := resolve.Resolve(inputAt("BR001"), []*rule.RuleDefinition{offPath}, loadHierarchy(t, "rwb.json"))
-	assertFailed(t, result, "NO_RULE_RESOLVED")
-	if candidateFor(t, result, offPath).EliminatedBy != resolve.EliminatedNotOnPath {
-		t.Fatalf("candidate = %#v", candidateFor(t, result, offPath))
-	}
+	snapshot := loadHierarchy(t, "rwb.json")
+
+	t.Run("excluded candidate remains explainable", func(t *testing.T) {
+		result := resolve.Resolve(inputAt("BR001"), []*rule.RuleDefinition{offPath, root}, snapshot)
+		assertWinner(t, result, root)
+		candidate := candidateFor(t, result, offPath)
+		if candidate.OnPath || candidate.Winner || candidate.EliminatedBy != resolve.EliminatedNotOnPath || candidate.Reason == "" {
+			t.Fatalf("off-path candidate = %#v", candidate)
+		}
+	})
+
+	t.Run("no on-path candidate fails closed", func(t *testing.T) {
+		result := resolve.Resolve(inputAt("BR001"), []*rule.RuleDefinition{offPath}, snapshot)
+		assertFailed(t, result, "NO_RULE_RESOLVED")
+		candidate := candidateFor(t, result, offPath)
+		if candidate.OnPath || candidate.Winner || candidate.EliminatedBy != resolve.EliminatedNotOnPath || candidate.Reason == "" {
+			t.Fatalf("off-path candidate = %#v", candidate)
+		}
+	})
 }
 
 func TestRT06FiltersNarrowButNeverPromote(t *testing.T) {
 	root := nodeRule("filtered-root", "G001")
-	root.Scope.Filters = []rule.FilterCondition{filter("country", rule.FilterEquals, "Canada")}
+	root.Scope.Filters = []rule.FilterCondition{
+		filter("country", rule.FilterEquals, "Canada"),
+		filter("designation", rule.FilterEquals, "Senior"),
+	}
+	preferredPriority := -100
+	root.TieBreakPriority = &preferredPriority
 	company := nodeRule("company", "C002")
 	input := inputAt("BR001")
-	input.Attributes = map[string]any{"country": "Canada"}
+	input.Attributes = map[string]any{"country": "Canada", "designation": "Senior"}
 	result := resolve.Resolve(input, []*rule.RuleDefinition{root, company}, loadHierarchy(t, "rwb.json"))
 	assertWinner(t, result, company)
-	if candidateFor(t, result, root).EliminatedBy != resolve.EliminatedLowerOrder {
-		t.Fatalf("root candidate = %#v", candidateFor(t, result, root))
+	shallower := candidateFor(t, result, root)
+	if !shallower.OnPath || !shallower.FiltersMatched || shallower.EliminatedBy != resolve.EliminatedLowerOrder {
+		t.Fatalf("shallower candidate = %#v", shallower)
 	}
 }
 
@@ -97,17 +109,47 @@ func TestRT07OverlappingFiltersUseDeterministicRuntimeFallback(t *testing.T) {
 	permanent.Scope.Filters = []rule.FilterCondition{filter("workerCategory", rule.FilterEquals, "PERMANENT")}
 	input := inputAt("BR003")
 	input.Attributes = map[string]any{"employeeGroup": "Finance", "workerCategory": "PERMANENT"}
-	result := resolve.Resolve(input, []*rule.RuleDefinition{permanent, finance}, loadHierarchy(t, "rwb.json"))
-	assertTie(t, result, finance, permanent)
+	snapshot := loadHierarchy(t, "rwb.json")
+	first := resolve.Resolve(input, []*rule.RuleDefinition{permanent, finance}, snapshot)
+	second := resolve.Resolve(input, []*rule.RuleDefinition{finance, permanent}, snapshot)
+	assertTie(t, first, finance, permanent)
+	assertTie(t, second, finance, permanent)
+	if first.Winner.Rule != finance || second.Winner.Rule != finance || !reflect.DeepEqual(first, second) {
+		t.Fatalf("runtime fallback changed with input order\nfirst=%#v\nsecond=%#v", first, second)
+	}
+	loser := candidateFor(t, first, permanent)
+	if loser.EliminatedBy != resolve.EliminatedTieBreak || loser.Reason == "" || first.Winner.Reason == "" {
+		t.Fatalf("conflict explanation is incomplete: winner=%#v loser=%#v", first.Winner, loser)
+	}
 }
 
 func TestRT08InsertedHierarchyLevelDoesNotChangeWinner(t *testing.T) {
 	company := nodeRule("company", "C002")
 	department := nodeRule("department", "D002")
-	for _, fixture := range []string{"rwb.json", "rwb-with-division.json"} {
-		result := resolve.Resolve(inputAt("BR001"), []*rule.RuleDefinition{company, department}, loadHierarchy(t, fixture))
+	fixtures := []struct {
+		name string
+		path []string
+	}{
+		{name: "rwb.json", path: []string{"G001", "C002", "D002", "BR001"}},
+		{name: "rwb-with-division.json", path: []string{"G001", "C002", "DV001", "D002", "BR001"}},
+	}
+	for _, fixture := range fixtures {
+		snapshot := loadHierarchy(t, fixture.name)
+		path, err := snapshot.Path("RWB", "BR001")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := pathNodeIDs(path); !reflect.DeepEqual(got, fixture.path) {
+			t.Fatalf("%s path = %v, want %v", fixture.name, got, fixture.path)
+		}
+		result := resolve.Resolve(inputAt("BR001"), []*rule.RuleDefinition{company, department}, snapshot)
 		assertWinner(t, result, department)
 	}
+
+	withDivision := loadHierarchy(t, "rwb-with-division.json")
+	division := nodeRule("division", "DV001")
+	assertWinner(t, resolve.Resolve(inputAt("BR001"), []*rule.RuleDefinition{company, division}, withDivision), division)
+	assertWinner(t, resolve.Resolve(inputAt("BR001"), []*rule.RuleDefinition{division, department}, withDivision), department)
 }
 
 func TestRT09AttributesResolveIndependently(t *testing.T) {
@@ -178,7 +220,18 @@ func TestRT13RepeatedHierarchyTypeUsesDepth(t *testing.T) {
 	}
 }
 
-func TestRT14EvaluatedListIsDeterministic(t *testing.T) {
+func TestRT14HierarchyTypeOrderCannotOverrideDepth(t *testing.T) {
+	snapshot, nodes := linearHierarchy(t, []int{20, 10, 0})
+	shallower := nodeRuleForTenant("shallower-high-order", nodes[0].NodeID, "T")
+	deeper := nodeRuleForTenant("deeper-low-order", nodes[len(nodes)-1].NodeID, "T")
+	result := resolve.Resolve(inputAtTenant(nodes[len(nodes)-1].NodeID, "T"), []*rule.RuleDefinition{shallower, deeper}, snapshot)
+	assertWinner(t, result, deeper)
+	if result.Winner.Precedence.Depth != 2 || result.Winner.Precedence.Order != 0 {
+		t.Fatalf("winner precedence = %#v, want depth 2 even though type order is 0", result.Winner.Precedence)
+	}
+}
+
+func TestRT15EvaluatedListIsDeterministic(t *testing.T) {
 	snapshot := loadHierarchy(t, "rwb.json")
 	input := inputAt("BR001")
 	input.Attributes = map[string]any{"country": "Canada"}
@@ -253,17 +306,6 @@ func TestResolutionBoundaryFailures(t *testing.T) {
 	assertFailed(t, result, "NO_RULE_RESOLVED")
 }
 
-func TestEmployeeExceptionsTie(t *testing.T) {
-	first := employeeRule("employee-a", "E9001")
-	second := employeeRule("employee-b", "E9001")
-	root := nodeRule("root", "G001")
-	result := resolve.Resolve(inputAt("BR001"), []*rule.RuleDefinition{root, second, first}, loadHierarchy(t, "rwb.json"))
-	assertTie(t, result, first, second)
-	if candidateFor(t, result, root).EliminatedBy != resolve.EliminatedLowerOrder {
-		t.Fatalf("root candidate = %#v", candidateFor(t, result, root))
-	}
-}
-
 func TestFilterSpecificityBreaksSameRank(t *testing.T) {
 	unfiltered := nodeRule("unfiltered", "D002")
 	filtered := nodeRule("filtered", "D002")
@@ -311,43 +353,55 @@ func TestHigherPriorityIsEliminatedWhenLowestPrioritiesTie(t *testing.T) {
 func TestAnchorOnPath(t *testing.T) {
 	path := []hierarchy.PathEntry{{NodeID: "D001"}, {NodeID: "G001"}}
 	tests := []struct {
-		name     string
-		anchor   rule.Anchor
-		employee string
-		want     bool
+		name   string
+		anchor rule.Anchor
+		want   bool
 	}{
-		{"node", rule.Anchor{Kind: rule.AnchorNode, NodeID: "G001"}, "", true},
-		{"node missing", rule.Anchor{Kind: rule.AnchorNode, NodeID: "X"}, "", false},
-		{"empty node", rule.Anchor{Kind: rule.AnchorNode}, "", false},
-		{"employee", rule.Anchor{Kind: rule.AnchorEmployee, EmployeeID: "E1"}, "E1", true},
-		{"employee mismatch", rule.Anchor{Kind: rule.AnchorEmployee, EmployeeID: "E1"}, "E2", false},
-		{"empty employee", rule.Anchor{Kind: rule.AnchorEmployee}, "", false},
-		{"unknown", rule.Anchor{Kind: rule.AnchorKind("unknown")}, "", false},
+		{"node", rule.Anchor{Kind: rule.AnchorNode, NodeID: "G001"}, true},
+		{"node missing", rule.Anchor{Kind: rule.AnchorNode, NodeID: "X"}, false},
+		{"empty node", rule.Anchor{Kind: rule.AnchorNode}, false},
+		{"retired employee kind", rule.Anchor{Kind: rule.AnchorKind("employee")}, false},
+		{"unknown", rule.Anchor{Kind: rule.AnchorKind("unknown")}, false},
 	}
 	for _, test := range tests {
-		if got := resolve.AnchorOnPath(test.anchor, path, test.employee); got != test.want {
+		if got := resolve.AnchorOnPath(test.anchor, path); got != test.want {
 			t.Errorf("%s: AnchorOnPath() = %v, want %v", test.name, got, test.want)
 		}
 	}
 }
 
 func TestPropertyPrecedenceMonotonicity(t *testing.T) {
-	snapshot := loadHierarchy(t, "rwb.json")
-	path, err := snapshot.Path("RWB", "BR001")
-	if err != nil {
-		t.Fatal(err)
-	}
 	random := rand.New(rand.NewSource(301))
 	for iteration := 0; iteration < 1000; iteration++ {
+		levelCount := 2 + random.Intn(15)
+		orders := random.Perm(levelCount)
+		snapshot, nodes := linearHierarchy(t, orders)
+		path, err := snapshot.Path("T", nodes[levelCount-1].NodeID)
+		if err != nil {
+			t.Fatal(err)
+		}
 		shallowerIndex := random.Intn(len(path) - 1)
 		deeperIndex := shallowerIndex + 1 + random.Intn(len(path)-shallowerIndex-1)
-		deeper := nodeRule(fmt.Sprintf("deep-%d", iteration), path[deeperIndex].NodeID)
-		shallower := nodeRule(fmt.Sprintf("shallow-%d", iteration), path[shallowerIndex].NodeID)
+		deeper := nodeRuleForTenant(fmt.Sprintf("deep-%d", iteration), path[deeperIndex].NodeID, "T")
+		shallower := nodeRuleForTenant(fmt.Sprintf("shallow-%d", iteration), path[shallowerIndex].NodeID, "T")
+		priority := -1000
+		shallower.TieBreakPriority = &priority
+		filterCount := 1 + random.Intn(4)
+		attributes := make(map[string]any, filterCount)
+		shallower.Scope.Filters = make([]rule.FilterCondition, filterCount)
+		for index := 0; index < filterCount; index++ {
+			name := fmt.Sprintf("attribute-%d", index)
+			value := fmt.Sprintf("value-%d", index)
+			attributes[name] = value
+			shallower.Scope.Filters[index] = filter(name, rule.FilterEquals, value)
+		}
 		definitions := []*rule.RuleDefinition{deeper, shallower}
 		if random.Intn(2) == 0 {
 			definitions[0], definitions[1] = definitions[1], definitions[0]
 		}
-		result := resolve.Resolve(inputAt("BR001"), definitions, snapshot)
+		input := inputAtTenant(nodes[levelCount-1].NodeID, "T")
+		input.Attributes = attributes
+		result := resolve.Resolve(input, definitions, snapshot)
 		if result.Winner == nil || result.Winner.Rule != deeper {
 			t.Fatalf("iteration %d: deeper anchor did not win: %#v", iteration, result)
 		}
@@ -358,21 +412,7 @@ func TestPropertyDeterminism(t *testing.T) {
 	random := rand.New(rand.NewSource(302))
 	for iteration := 0; iteration < 1000; iteration++ {
 		typeCount := 1 + random.Intn(8)
-		types := make([]hierarchy.Type, typeCount)
-		nodes := make([]hierarchy.Node, typeCount)
-		for index := 0; index < typeCount; index++ {
-			typeID := fmt.Sprintf("type-%d", index)
-			nodeID := fmt.Sprintf("node-%d", index)
-			types[index] = hierarchy.Type{TypeID: typeID, TypeName: fmt.Sprintf("Type %d", index), Order: index, Tenant: "T", Status: "ACTIVE"}
-			nodes[index] = hierarchy.Node{NodeID: nodeID, Tenant: "T", TypeID: typeID, Name: nodeID, Status: "ACTIVE"}
-			if index > 0 {
-				nodes[index].ParentNodeID = nodes[index-1].NodeID
-			}
-		}
-		snapshot, err := hierarchy.NewSnapshot(types, nodes)
-		if err != nil {
-			t.Fatal(err)
-		}
+		snapshot, nodes := linearHierarchy(t, random.Perm(typeCount))
 		candidateCount := 1 + random.Intn(10)
 		definitions := make([]*rule.RuleDefinition, candidateCount)
 		for index := range definitions {
@@ -451,6 +491,40 @@ func BenchmarkResolve(b *testing.B) {
 
 var benchmarkResult resolve.Result
 
+func linearHierarchy(t testing.TB, orders []int) (*hierarchy.Snapshot, []hierarchy.Node) {
+	t.Helper()
+	types := make([]hierarchy.Type, len(orders))
+	nodes := make([]hierarchy.Node, len(orders))
+	for index, order := range orders {
+		typeID := fmt.Sprintf("type-%d", index)
+		nodeID := fmt.Sprintf("node-%d", index)
+		types[index] = hierarchy.Type{
+			TypeID: typeID, TypeName: fmt.Sprintf("Type %d", index),
+			Order: order, Tenant: "T", Status: "ACTIVE",
+		}
+		nodes[index] = hierarchy.Node{
+			NodeID: nodeID, Tenant: "T", TypeID: typeID,
+			Name: nodeID, Status: "ACTIVE",
+		}
+		if index > 0 {
+			nodes[index].ParentNodeID = nodes[index-1].NodeID
+		}
+	}
+	snapshot, err := hierarchy.NewSnapshot(types, nodes)
+	if err != nil {
+		t.Fatalf("build %d-level hierarchy: %v", len(orders), err)
+	}
+	return snapshot, nodes
+}
+
+func pathNodeIDs(path []hierarchy.PathEntry) []string {
+	result := make([]string, len(path))
+	for index := range path {
+		result[index] = path[index].NodeID
+	}
+	return result
+}
+
 func loadHierarchy(t testing.TB, name string) *hierarchy.Snapshot {
 	t.Helper()
 	snapshot, err := ruletest.LoadHierarchy(name)
@@ -478,12 +552,6 @@ func nodeRuleForTenant(name, nodeID, tenant string) *rule.RuleDefinition {
 		Effective: rule.Effective{ValidFrom: phase3ValidAt.Add(-time.Hour)},
 		Scope:     rule.Scope{Anchor: rule.Anchor{Kind: rule.AnchorNode, NodeID: nodeID}},
 	}
-}
-
-func employeeRule(name, employeeID string) *rule.RuleDefinition {
-	definition := nodeRule(name, "")
-	definition.Scope.Anchor = rule.Anchor{Kind: rule.AnchorEmployee, EmployeeID: employeeID, Reason: "approved exception"}
-	return definition
 }
 
 func assertWinner(t testing.TB, result resolve.Result, want *rule.RuleDefinition) {

@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -148,20 +147,13 @@ func TestSnapshotNilAndHierarchyMissBoundaries(t *testing.T) {
 	}
 }
 
-type failingManifestStore struct{ err error }
-
-func (s failingManifestStore) Get(context.Context, string) (manifest.RunManifest, bool, error) {
-	return manifest.RunManifest{}, false, s.err
-}
-
 func TestVersionResolverBoundaryFailures(t *testing.T) {
 	definition := testRule("alpha", "1.0.0", january)
 	cache := NewCache()
 	if err := cache.Replace(Bundle{Rules: []rule.RuleDefinition{definition}}); err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
-	if _, err := (*VersionResolver)(nil).Resolve(ctx, VersionRequest{}); !errors.Is(err, ErrCacheUnavailable) {
+	if _, err := (*VersionResolver)(nil).Resolve(VersionRequest{}); !errors.Is(err, ErrCacheUnavailable) {
 		t.Fatalf("nil Resolve error = %v", err)
 	}
 	resolver := NewVersionResolver(cache, nil)
@@ -170,30 +162,21 @@ func TestVersionResolverBoundaryFailures(t *testing.T) {
 		{Tenant: "T1", RuleKey: "bad-key", EffectiveAt: january},
 		{Tenant: "T1", RuleKey: definition.RuleKey},
 	} {
-		if _, err := resolver.Resolve(ctx, request); err == nil {
+		if _, err := resolver.Resolve(request); err == nil {
 			t.Fatalf("Resolve(%+v) succeeded", request)
 		}
 	}
-	if _, err := resolver.ResolveSnapshot(ctx, nil, VersionRequest{}); !errors.Is(err, ErrCacheUnavailable) {
+	if _, err := resolver.ResolveSnapshot(nil, VersionRequest{}); !errors.Is(err, ErrCacheUnavailable) {
 		t.Fatalf("nil snapshot error = %v", err)
 	}
-	if _, err := resolver.RunManifest(ctx, "T1", "run"); !errors.Is(err, ErrRunManifestUnavailable) {
+	if _, err := resolver.RunManifest("T1", "run"); !errors.Is(err, ErrRunManifestUnavailable) {
 		t.Fatalf("nil manifest store error = %v", err)
 	}
-	if _, _, err := resolver.FactPin(ctx, "T1", "", "field"); err == nil {
+	if _, _, err := resolver.FactPin("T1", "", "field"); err == nil {
 		t.Fatal("empty runId fact pin succeeded")
 	}
-	if _, _, err := resolver.FactPin(ctx, "T1", "run", "field"); !errors.Is(err, ErrRunManifestUnavailable) {
+	if _, _, err := resolver.FactPin("T1", "run", "field"); !errors.Is(err, ErrRunManifestUnavailable) {
 		t.Fatalf("nil manifest store FactPin error = %v", err)
-	}
-
-	storeErr := errors.New("store unavailable")
-	failing := NewVersionResolver(cache, failingManifestStore{err: storeErr})
-	if _, err := failing.RunManifest(ctx, "T1", "run"); !errors.Is(err, storeErr) {
-		t.Fatalf("RunManifest did not wrap store error: %v", err)
-	}
-	if _, _, err := failing.FactPin(ctx, "T1", "run", "field"); !errors.Is(err, storeErr) {
-		t.Fatalf("FactPin did not wrap store error: %v", err)
 	}
 
 	runs := manifest.NewInMemoryStore()
@@ -205,13 +188,13 @@ func TestVersionResolverBoundaryFailures(t *testing.T) {
 		t.Fatal(err)
 	}
 	withRuns := NewVersionResolver(cache, runs)
-	if _, err := withRuns.Resolve(ctx, VersionRequest{Tenant: "T1", RuleKey: definition.RuleKey, RunID: "run", EffectiveAt: january.Add(time.Second)}); !errors.Is(err, ErrPinnedVersionUnavailable) {
+	if _, err := withRuns.Resolve(VersionRequest{Tenant: "T1", RuleKey: definition.RuleKey, RunID: "run", EffectiveAt: january.Add(time.Second)}); !errors.Is(err, ErrPinnedVersionUnavailable) {
 		t.Fatalf("mismatched run validAt error = %v", err)
 	}
-	if _, _, err := withRuns.FactPin(ctx, "T2", "run", "field"); !errors.Is(err, ErrRunTenantMismatch) {
+	if _, _, err := withRuns.FactPin("T2", "run", "field"); !errors.Is(err, ErrRunTenantMismatch) {
 		t.Fatalf("cross-tenant FactPin error = %v", err)
 	}
-	if _, found, err := withRuns.FactPin(ctx, "T1", "run", "missing"); err != nil || found {
+	if _, found, err := withRuns.FactPin("T1", "run", "missing"); err != nil || found {
 		t.Fatalf("missing FactPin = %t, %v", found, err)
 	}
 }

@@ -20,6 +20,7 @@ const (
 	ReasonHierarchyNotConfigured ReasonCode = "HIERARCHY_NOT_CONFIGURED"
 	// ReasonSubjectNodeUnresolvable is retained for source compatibility with
 	// v1. V2 emits HIERARCHY_NOT_CONFIGURED for this condition.
+	//
 	// Deprecated: use ReasonHierarchyNotConfigured.
 	ReasonSubjectNodeUnresolvable ReasonCode = "SUBJECT_NODE_UNRESOLVABLE"
 	// ReasonNoRuleResolved means no candidate survived resolution.
@@ -29,6 +30,7 @@ const (
 	ReasonDefaultApplied ReasonCode = "DEFAULT_APPLIED"
 	// ReasonPrecedenceTieUnresolved is retained for source compatibility with
 	// v1. V2 applies a deterministic fallback and emits PRECEDENCE_CONFLICT.
+	//
 	// Deprecated: use ReasonPrecedenceConflict.
 	ReasonPrecedenceTieUnresolved ReasonCode = "PRECEDENCE_TIE_UNRESOLVED"
 	// ReasonPrecedenceConflict records a same-rank conflict that escaped

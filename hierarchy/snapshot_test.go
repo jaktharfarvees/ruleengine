@@ -117,14 +117,10 @@ func TestNewSnapshotRejectsInvalidData(t *testing.T) {
 func TestDerivePrecedence(t *testing.T) {
 	snapshot := mustSmallSnapshot(t)
 	precedence, err := snapshot.DerivePrecedence("T", rule.Anchor{Kind: rule.AnchorNode, NodeID: "child"})
-	if err != nil || precedence.Order != 1 || precedence.Depth != 1 || precedence.TypeName != "Department" || precedence.NodeName != "Child" || precedence.IsEmployeeException {
+	if err != nil || precedence.Order != 1 || precedence.Depth != 1 || precedence.TypeName != "Department" || precedence.NodeName != "Child" {
 		t.Fatalf("node precedence = %#v, %v", precedence, err)
 	}
-	employee, err := snapshot.DerivePrecedence("T", rule.Anchor{Kind: rule.AnchorEmployee, EmployeeID: "E1"})
-	if err != nil || !employee.IsEmployeeException || employee.Order != EmployeeExceptionOrder {
-		t.Fatalf("employee precedence = %#v, %v", employee, err)
-	}
-	for _, anchor := range []rule.Anchor{{Kind: rule.AnchorEmployee}, {Kind: rule.AnchorNode, NodeID: "missing"}, {Kind: "other"}} {
+	for _, anchor := range []rule.Anchor{{Kind: rule.AnchorKind("employee")}, {Kind: rule.AnchorNode, NodeID: "missing"}, {Kind: "other"}} {
 		if _, err := snapshot.DerivePrecedence("T", anchor); err == nil {
 			t.Fatalf("DerivePrecedence(%#v) returned no error", anchor)
 		}

@@ -88,41 +88,41 @@ func cloneReflect(value reflect.Value) reflect.Value {
 		if value.IsNil() {
 			return reflect.Zero(value.Type())
 		}
-		copy := reflect.New(value.Type()).Elem()
-		copy.Set(cloneReflect(value.Elem()))
-		return copy
+		cloned := reflect.New(value.Type()).Elem()
+		cloned.Set(cloneReflect(value.Elem()))
+		return cloned
 	case reflect.Pointer:
 		if value.IsNil() {
 			return reflect.Zero(value.Type())
 		}
-		copy := reflect.New(value.Elem().Type())
-		copy.Elem().Set(cloneReflect(value.Elem()))
-		return copy
+		cloned := reflect.New(value.Elem().Type())
+		cloned.Elem().Set(cloneReflect(value.Elem()))
+		return cloned
 	case reflect.Slice:
 		if value.IsNil() {
 			return reflect.Zero(value.Type())
 		}
-		copy := reflect.MakeSlice(value.Type(), value.Len(), value.Len())
+		cloned := reflect.MakeSlice(value.Type(), value.Len(), value.Len())
 		for index := 0; index < value.Len(); index++ {
-			copy.Index(index).Set(cloneReflect(value.Index(index)))
+			cloned.Index(index).Set(cloneReflect(value.Index(index)))
 		}
-		return copy
+		return cloned
 	case reflect.Array:
-		copy := reflect.New(value.Type()).Elem()
+		cloned := reflect.New(value.Type()).Elem()
 		for index := 0; index < value.Len(); index++ {
-			copy.Index(index).Set(cloneReflect(value.Index(index)))
+			cloned.Index(index).Set(cloneReflect(value.Index(index)))
 		}
-		return copy
+		return cloned
 	case reflect.Map:
 		if value.IsNil() {
 			return reflect.Zero(value.Type())
 		}
-		copy := reflect.MakeMapWithSize(value.Type(), value.Len())
+		cloned := reflect.MakeMapWithSize(value.Type(), value.Len())
 		iterator := value.MapRange()
 		for iterator.Next() {
-			copy.SetMapIndex(iterator.Key(), cloneReflect(iterator.Value()))
+			cloned.SetMapIndex(iterator.Key(), cloneReflect(iterator.Value()))
 		}
-		return copy
+		return cloned
 	default:
 		return value
 	}

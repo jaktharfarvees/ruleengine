@@ -19,18 +19,19 @@ import (
 // options holds everything a consumer may supply. It is unexported so that
 // adding a collaborator later is not a breaking change.
 type options struct {
-	engine         engine.Engine
-	loader         store.Loader
-	changesLoader  store.ChangesLoader
-	executor       dataset.Executor
-	natives        *fact.NativeRegistry
-	contextBuilder contextbuilder.ContextBuilder
-	decisionLogger audit.DecisionLogger
-	manifestStore  manifest.Store
-	metrics        telemetry.Metrics
-	tracer         telemetry.Tracer
-	logger         *slog.Logger
-	clock          clock.Clock
+	engine           engine.Engine
+	loader           store.Loader
+	changesLoader    store.ChangesLoader
+	executor         dataset.Executor
+	natives          *fact.NativeRegistry
+	contextBuilder   contextbuilder.ContextBuilder
+	decisionLogger   audit.DecisionLogger
+	idempotencyStore IdempotencyStore
+	manifestStore    *manifest.InMemoryStore
+	metrics          telemetry.Metrics
+	tracer           telemetry.Tracer
+	logger           *slog.Logger
+	clock            clock.Clock
 }
 
 // Option configures an Engine.
@@ -117,9 +118,20 @@ func WithDecisionLogger(value audit.DecisionLogger) Option {
 	}
 }
 
-// WithManifestStore supplies run manifests, which batch runs need to pin
-// versions. A service that runs no batches needs none.
-func WithManifestStore(value manifest.Store) Option {
+// WithIdempotencyStore supplies the atomic result store used by money-moving
+// decisions. Every service replica must share the same production store.
+func WithIdempotencyStore(value IdempotencyStore) Option {
+	return func(o *options) {
+		if value != nil {
+			o.idempotencyStore = value
+		}
+	}
+}
+
+// WithManifestStore supplies the process-local run-manifest cache used by
+// batch evaluations. Synchronize it before evaluating a run; Evaluate never
+// loads a manifest over the network. A service that runs no batches needs none.
+func WithManifestStore(value *manifest.InMemoryStore) Option {
 	return func(o *options) {
 		if value != nil {
 			o.manifestStore = value

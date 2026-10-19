@@ -134,26 +134,16 @@ func TestRolesAreRankedExceptAuditor(t *testing.T) {
 	}
 }
 
-// TestEmployeeExceptionNeedsATenantAdmin pins that the one rule which can
-// override every node in a tenant is not something a branch author can write.
-func TestEmployeeExceptionNeedsATenantAdmin(t *testing.T) {
+// TestRetiredEmployeeAnchorHasNoAuthority ensures no role can revive the
+// superseded employee-anchor model through the authorisation layer.
+func TestRetiredEmployeeAnchorHasNoAuthority(t *testing.T) {
 	snapshot := rwb(t)
-	exception := rule.Anchor{Kind: rule.AnchorEmployee, EmployeeID: "E9001", Reason: "approved exception"}
-
-	if !authz.IsWithinAuthority(exception, []authz.RoleGrant{grant(authz.RoleTenantAdmin, "G001")},
-		authz.RoleAuthor, snapshot, tenant) {
-		t.Error("a tenant admin should be able to author an employee exception")
-	}
-	for _, role := range []authz.GrantRole{authz.RolePublisher, authz.RoleAuthor, authz.RoleAuditor} {
-		if authz.IsWithinAuthority(exception, []authz.RoleGrant{grant(role, "G001")},
+	retired := rule.Anchor{Kind: rule.AnchorKind("employee")}
+	for _, role := range []authz.GrantRole{authz.RoleTenantAdmin, authz.RolePublisher, authz.RoleAuthor, authz.RoleAuditor} {
+		if authz.IsWithinAuthority(retired, []authz.RoleGrant{grant(role, "G001")},
 			authz.RoleAuthor, snapshot, tenant) {
-			t.Errorf("%s must not be able to author an employee exception", role)
+			t.Errorf("%s was allowed to author a retired employee anchor", role)
 		}
-	}
-	// An exception with no employee is not an anchor at all.
-	if authz.IsWithinAuthority(rule.Anchor{Kind: rule.AnchorEmployee},
-		[]authz.RoleGrant{grant(authz.RoleTenantAdmin, "G001")}, authz.RoleAuthor, snapshot, tenant) {
-		t.Error("an employee anchor with no employee was permitted")
 	}
 }
 

@@ -38,10 +38,6 @@ func scopeIdentity(definition rule.RuleDefinition) string {
 	builder.WriteByte('\x1f')
 	builder.WriteString(anchor.NodeID)
 	builder.WriteByte('\x1f')
-	builder.WriteString(anchor.EmployeeID)
-	builder.WriteByte('\x1f')
-	// Anchor.Reason is deliberately excluded: it is documentation for an
-	// employee exception, not part of which subjects the rule covers.
 	filters := make([]string, 0, len(attributeFilters))
 	for _, filter := range attributeFilters {
 		filters = append(filters, fmt.Sprintf("%s\x1d%s\x1d%v", filter.Attribute, filter.Op, filter.Value))

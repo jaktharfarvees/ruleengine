@@ -82,32 +82,13 @@ type RoleGrant struct {
 // beneath the granted one has it as an ancestor. A grant deeper than the anchor
 // does not permit it — authority flows downward, so an author granted one
 // branch cannot write a rule that also governs its siblings.
-//
-// An employee anchor is an exception to a tenant's whole hierarchy and is
-// permitted only to a tenant admin, because the employee's own node is not
-// known here and an exception is the one rule that can override every node.
 func IsWithinAuthority(
 	anchor rule.Anchor, grants []RoleGrant, need GrantRole, snapshot *hierarchy.Snapshot, tenant string,
 ) bool {
 	if tenant == "" || !need.Valid() || snapshot == nil {
 		return false
 	}
-	switch anchor.Kind {
-	case rule.AnchorEmployee:
-		if anchor.EmployeeID == "" {
-			return false
-		}
-		for _, grant := range grants {
-			if grant.Tenant == tenant && grant.Role == RoleTenantAdmin && grant.Role.satisfies(need) {
-				return true
-			}
-		}
-		return false
-	case rule.AnchorNode:
-		if anchor.NodeID == "" {
-			return false
-		}
-	default:
+	if anchor.Kind != rule.AnchorNode || anchor.NodeID == "" {
 		return false
 	}
 

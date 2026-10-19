@@ -65,7 +65,7 @@ func (r RuleDefinition) MarshalJSON() ([]byte, error) {
 // EffectiveAnchor returns the v2 anchor, or the deprecated in-memory scope
 // anchor when a legacy Go caller constructed the value directly.
 func (r RuleDefinition) EffectiveAnchor() Anchor {
-	if r.Anchor.Kind != "" || r.Anchor.NodeID != "" || r.Anchor.EmployeeID != "" {
+	if r.Anchor.Kind != "" || r.Anchor.NodeID != "" {
 		anchor := r.Anchor
 		if anchor.Kind == "" && anchor.NodeID != "" {
 			anchor.Kind = AnchorNode

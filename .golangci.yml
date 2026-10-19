@@ -17,7 +17,6 @@ linters:
     - goconst
     - gocritic
     - gosec
-    - gosimple
     - govet
     - ineffassign
     - misspell
@@ -26,13 +25,21 @@ linters:
     - predeclared
     - revive
     - staticcheck
-    - typecheck
     - unconvert
     - unparam
     - unused
     - wastedassign
     - whitespace
   settings:
+    exhaustive:
+      default-signifies-exhaustive: true
+    staticcheck:
+      checks:
+        - all
+        - -QF*
+    gocritic:
+      disabled-checks:
+        - ifElseChain
     revive:
       rules:
         - name: exported
@@ -52,6 +59,35 @@ linters:
       analyze-types: true
   exclusions:
     rules:
+      # Repeated fixture values, deterministic pseudo-random test order, and
+      # deliberate nil-context boundary tests are not production findings.
+      - path: _test\.go
+        linters: [forbidigo, goconst, gocritic, gosec, staticcheck, unparam]
+      # Command-line tools and runnable examples intentionally write to their
+      # user-facing stdout stream.
+      - path: ^cmd/
+        linters: [forbidigo]
+      - path: ^examples/
+        linters: [forbidigo]
+      # These conversions validate generic JSON Schema numbers, not money.
+      - path: ^schema/
+        linters: [forbidigo]
+      # Deadlines and elapsed-duration telemetry require the monotonic process
+      # clock; business time still comes only from request Params.
+      - path: ^fact/resolver\.go$
+        linters: [forbidigo]
+      - path: ^pipeline\.go$
+        linters: [forbidigo]
+      - path: ^audit/
+        linters: [forbidigo]
+      # Public contract names are fixed by the v2 specification.
+      - path: ^fact/source\.go$
+        linters: [revive]
+      - path: ^rule/(catalog|key|logic|rule)\.go$
+        linters: [revive]
+      # The token is a subject identifier placeholder, not a credential.
+      - path: ^dataset/guard\.go$
+        linters: [gosec]
       - path: internal/clock/clock.go
         linters: [forbidigo]
       - path: internal/decimalx/

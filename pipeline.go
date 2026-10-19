@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/arrowhr/ruleengine/audit"
 	"github.com/arrowhr/ruleengine/dataset"
@@ -15,6 +16,8 @@ import (
 	"github.com/arrowhr/ruleengine/fact"
 	"github.com/arrowhr/ruleengine/hierarchy"
 	"github.com/arrowhr/ruleengine/internal/decimalx"
+	"github.com/arrowhr/ruleengine/internal/deepcopy"
+	"github.com/arrowhr/ruleengine/manifest"
 	"github.com/arrowhr/ruleengine/registry"
 	"github.com/arrowhr/ruleengine/resolve"
 	"github.com/arrowhr/ruleengine/rule"
@@ -38,7 +41,8 @@ const staleReconcileMultiple = 3
 // between the two returns is the contract documented in doc.go: a business
 // refusal is a Decision with Failed set, and a Go error means the caller
 // should retry, alert or fix configuration.
-func (s *session) evaluate(ctx context.Context, request EvalRequest, point Point) (Decision, error) {
+func (s *session) evaluate(request EvalRequest, point Point) (Decision, error) {
+	ctx := s.ctx
 	// The rule key already names the domain, rule set and name, so a caller
 	// that supplied a key need not repeat them. Filling them in here keeps
 	// EvaluateAll usable, where the caller gives a list of keys and nothing
@@ -61,6 +65,7 @@ func (s *session) evaluate(ctx context.Context, request EvalRequest, point Point
 			Traceparent:   request.Traceparent,
 			LibVersion:    Version,
 		},
+		startedAt: time.Now(),
 	}
 
 	snapshot, winner, failed := state.stageResolve(ctx)
@@ -78,6 +83,9 @@ func (s *session) evaluate(ctx context.Context, request EvalRequest, point Point
 		return state.finish(ctx, *failed)
 	}
 	state.inputsHash = hashInputs(facts, request.Subject.Attributes)
+	if state.config.RequireDurableAudit {
+		state.exactInputs = captureAuditInputs(facts, request.Subject.Attributes)
+	}
 	if failed := state.stageValidate(ctx, snapshot, winner, facts); failed != nil {
 		return state.finish(ctx, *failed)
 	}
@@ -102,18 +110,22 @@ type evaluation struct {
 	retriedLoad bool
 	defaulted   bool
 	inputsHash  string
+	exactInputs *audit.Inputs
+	runManifest *manifest.RunManifest
+	startedAt   time.Time
 }
 
 func (s *evaluation) note(code ReasonCode) { s.reasons = append(s.reasons, code) }
 
 // stage 1: Resolve. Validate the envelope, find the subject in the hierarchy,
 // and pick the rule that governs them.
-func (s *evaluation) stageResolve(ctx context.Context) (*store.Snapshot, *rule.RuleDefinition, *ReasonCode) {
+func (s *evaluation) stageResolve(ctx context.Context) (
+	snapshot *store.Snapshot, winner *rule.RuleDefinition, failure *ReasonCode,
+) {
 	ctx, span := s.session.engine.options.tracer.Start(ctx, telemetry.SpanResolve)
-	defer span.End()
+	defer func() { finishStageSpan(span, failure) }()
 
 	if code := s.validateRequest(); code != nil {
-		span.SetAttr("reason", code.String())
 		return nil, nil, code
 	}
 	// Business time governs every date comparison from here on. A request that
@@ -123,13 +135,13 @@ func (s *evaluation) stageResolve(ctx context.Context) (*store.Snapshot, *rule.R
 		s.decision.ValidAt = *s.request.ValidAt
 	}
 
-	snapshot := s.session.snapshot
+	snapshot = s.session.snapshot
 	if snapshot == nil {
 		return nil, nil, fail(ReasonHierarchyUnavailable)
 	}
 	hierarchyPin := ""
 	if s.request.RunID != "" {
-		run, err := s.session.engine.versions.RunManifest(ctx, s.request.Tenant.ID, s.request.RunID)
+		run, err := s.session.runManifest(s.request.Tenant.ID, s.request.RunID)
 		if err != nil {
 			return nil, nil, fail(ReasonPinnedVersionUnavailable)
 		}
@@ -138,6 +150,7 @@ func (s *evaluation) stageResolve(ctx context.Context) (*store.Snapshot, *rule.R
 		}
 		s.decision.ValidAt = run.ValidAt
 		hierarchyPin = run.HierarchySnapshotID
+		s.runManifest = &run
 	}
 	hierarchySnapshot, hierarchyID, found := snapshot.HierarchyAt(s.request.Tenant.ID, s.decision.ValidAt, hierarchyPin)
 	if !found {
@@ -161,25 +174,32 @@ func (s *evaluation) stageResolve(ctx context.Context) (*store.Snapshot, *rule.R
 	versionRequest := store.VersionRequest{
 		Tenant:      s.request.Tenant.ID,
 		RuleKey:     s.request.Routing.RuleKey,
-		RunID:       s.request.RunID,
 		ExplicitPin: s.request.RuleVersionPin,
 		EffectiveAt: s.decision.ValidAt,
 	}
-	candidates, versionErr := s.session.engine.versions.ResolveSnapshot(ctx, snapshot, versionRequest)
+	if s.runManifest != nil {
+		pin, found := s.runManifest.RulePin(s.request.Routing.RuleKey)
+		if !found {
+			return nil, nil, fail(ReasonPinnedVersionUnavailable)
+		}
+		versionRequest.ExplicitPin = pin
+	}
+	candidates, versionErr := s.session.engine.versions.ResolveSnapshot(snapshot, versionRequest)
 	if versionErr != nil {
 		if isPinFailure(versionErr) && s.session.engine.options.loader != nil && !s.retriedLoad {
 			s.retriedLoad = true
 			if reloadErr := s.session.engine.Reload(ctx); reloadErr == nil {
 				s.session.refresh()
 				snapshot = s.session.snapshot
-				candidates, versionErr = s.session.engine.versions.ResolveSnapshot(ctx, snapshot, versionRequest)
+				candidates, versionErr = s.session.engine.versions.ResolveSnapshot(snapshot, versionRequest)
 			}
 		}
-		if code := s.versionFailure(versionErr); code != nil {
-			span.RecordError(versionErr)
-			return nil, nil, code
+		if versionErr != nil {
+			if code := s.versionFailure(versionErr); code != nil {
+				return nil, nil, code
+			}
+			candidates = nil
 		}
-		candidates = nil
 	}
 	if len(candidates) > s.config.maxCandidates() {
 		// A catalog bucket this large is a data error, not a cost to pay per
@@ -201,7 +221,7 @@ func (s *evaluation) stageResolve(ctx context.Context) (*store.Snapshot, *rule.R
 
 	s.decision.SubjectPath = result.Path
 	s.decision.AnchorPath = pathNodeIDs(result.Path)
-	s.decision.Evaluated = evaluatedFrom(result)
+	s.decision.Evaluated = evaluatedFrom(result, snapshot.Registry())
 	s.recordAnomalies(result, family)
 
 	if result.Tie != nil {
@@ -242,9 +262,9 @@ func (s *evaluation) stageResolve(ctx context.Context) (*store.Snapshot, *rule.R
 //
 // Selection itself happened in stage 1, because a version carries its anchor:
 // choosing the rule and choosing the version are one act in this model.
-func (s *evaluation) stageVersion(ctx context.Context, winner *rule.RuleDefinition) *ReasonCode {
+func (s *evaluation) stageVersion(ctx context.Context, winner *rule.RuleDefinition) (failure *ReasonCode) {
 	_, span := s.session.engine.options.tracer.Start(ctx, telemetry.SpanVersion)
-	defer span.End()
+	defer func() { finishStageSpan(span, failure) }()
 
 	s.decision.RuleKey = winner.RuleKey
 	s.decision.RuleVersion = winner.Version
@@ -278,9 +298,11 @@ func (s *evaluation) versionFailure(err error) *ReasonCode {
 
 // stage 3: Fetch facts. Resolve only the winning rule's declared inputs, under
 // the request's fact budget.
-func (s *evaluation) stageFetchFacts(ctx context.Context, winner *rule.RuleDefinition) (map[string]any, *ReasonCode) {
+func (s *evaluation) stageFetchFacts(
+	ctx context.Context, winner *rule.RuleDefinition,
+) (facts map[string]any, failure *ReasonCode) {
 	ctx, span := s.session.engine.options.tracer.Start(ctx, telemetry.SpanFacts)
-	defer span.End()
+	defer func() { finishStageSpan(span, failure) }()
 
 	resolver := s.session.facts
 	if resolver == nil {
@@ -308,11 +330,17 @@ func (s *evaluation) stageFetchFacts(ctx context.Context, winner *rule.RuleDefin
 			}
 		}
 		if len(nativeInputs) > 0 {
-			built, err := builder.Build(ctx, nativeInputs, s.request.Subject.Identifier.Value, s.period())
+			buildContext, buildSpan := s.session.engine.options.tracer.Start(
+				ctx, telemetry.SpanFactKind(registry.FactNative.String()),
+			)
+			buildSpan.SetAttr(telemetry.AttrFactKind, registry.FactNative.String())
+			built, err := builder.Build(buildContext, nativeInputs, s.request.Subject.Identifier.Value, s.period())
 			if err != nil {
-				span.RecordError(err)
+				telemetry.RecordFailure(buildSpan, ReasonFactUnresolvable.String())
+				buildSpan.End()
 				return nil, fail(ReasonFactUnresolvable)
 			}
+			buildSpan.End()
 			for _, name := range nativeInputs {
 				if value, found := built[name]; found {
 					have[name] = value
@@ -323,9 +351,8 @@ func (s *evaluation) stageFetchFacts(ctx context.Context, winner *rule.RuleDefin
 
 	pins := s.request.FactSourcePins
 	if s.request.RunID != "" {
-		resolved, err := s.factPins(ctx, winner.DeclaredInputs)
+		resolved, err := s.factPins(winner.DeclaredInputs)
 		if err != nil {
-			span.RecordError(err)
 			return nil, fail(ReasonPinnedVersionUnavailable)
 		}
 		pins = resolved
@@ -339,8 +366,8 @@ func (s *evaluation) stageFetchFacts(ctx context.Context, winner *rule.RuleDefin
 		ValidAt:    s.decision.ValidAt,
 	}, pins)
 	if err != nil {
-		span.RecordError(err)
-		return nil, s.factFailure(err)
+		failure := s.factFailure(err)
+		return nil, failure
 	}
 	for _, note := range resolution.Notes {
 		if code, parseErr := ParseReasonCode(note); parseErr == nil {
@@ -353,17 +380,16 @@ func (s *evaluation) stageFetchFacts(ctx context.Context, winner *rule.RuleDefin
 
 // factPins merges a run's frozen fact-source versions with any the request
 // carries, so a batch decision uses the recipes the run opened with.
-func (s *evaluation) factPins(ctx context.Context, fields []string) (map[string]string, error) {
+func (s *evaluation) factPins(fields []string) (map[string]string, error) {
 	pins := make(map[string]string, len(fields))
 	for name, version := range s.request.FactSourcePins {
 		pins[name] = version
 	}
+	if s.runManifest == nil {
+		return nil, fmt.Errorf("%w: %q", store.ErrRunManifestUnavailable, s.request.RunID)
+	}
 	for _, field := range fields {
-		version, found, err := s.session.engine.versions.FactPin(
-			ctx, s.request.Tenant.ID, s.request.RunID, field)
-		if err != nil {
-			return nil, err
-		}
+		version, found := s.runManifest.FactPin(field)
 		if found {
 			pins[field] = version
 		}
@@ -375,9 +401,9 @@ func (s *evaluation) factPins(ctx context.Context, fields []string) (map[string]
 // the engine sees it.
 func (s *evaluation) stageValidate(
 	ctx context.Context, snapshot *store.Snapshot, winner *rule.RuleDefinition, facts map[string]any,
-) *ReasonCode {
+) (failure *ReasonCode) {
 	_, span := s.session.engine.options.tracer.Start(ctx, telemetry.SpanValidate)
-	defer span.End()
+	defer func() { finishStageSpan(span, failure) }()
 	// Checking facts against the registry is what strict validation adds.
 	if s.config.Validation != ValidationStrict {
 		return nil
@@ -387,7 +413,6 @@ func (s *evaluation) stageValidate(
 		return fail(ReasonFieldNotRegistered)
 	}
 	if err := fields.ValidateInputs(winner.Domain, winner.DeclaredInputs, facts); err != nil {
-		span.RecordError(err)
 		return registryFailure(err)
 	}
 	for _, name := range winner.DeclaredInputs {
@@ -401,9 +426,9 @@ func (s *evaluation) stageValidate(
 // stage 5: Evaluate. Run the rule's logic over the facts.
 func (s *evaluation) stageEvaluate(
 	ctx context.Context, winner *rule.RuleDefinition, facts map[string]any,
-) *ReasonCode {
+) (failure *ReasonCode) {
 	ctx, span := s.session.engine.options.tracer.Start(ctx, telemetry.SpanEngine)
-	defer span.End()
+	defer func() { finishStageSpan(span, failure) }()
 
 	// Subject attributes are available to rule logic, but a fetched fact wins
 	// a name collision and the shadow is recorded: a fact silently overridden
@@ -423,11 +448,11 @@ func (s *evaluation) stageEvaluate(
 		Facts: input, Trace: s.config.TraceEnabled,
 	})
 	if err != nil {
-		span.RecordError(err)
 		return fail(ReasonEngineError)
 	}
 	s.decision.Result = output.Result
-	s.decision.Trace = output.Trace
+	redaction := redactor{fields: s.fieldRegistry()}
+	s.decision.Trace = redaction.trace(output.Trace)
 
 	if s.config.Validation != ValidationStrict {
 		return nil
@@ -437,14 +462,13 @@ func (s *evaluation) stageEvaluate(
 		return fail(ReasonOutputContractViolation)
 	}
 	if err := snapshot.Registry().ValidateOutputs(winner.DeclaredOutputs, output.Result); err != nil {
-		span.RecordError(err)
 		return fail(ReasonOutputContractViolation)
 	}
 	return nil
 }
 
 // stage 6: Map and log. Build the decision, record it, and measure it.
-func (s *evaluation) finish(ctx context.Context, governing ReasonCode) (Decision, error) {
+func (s *evaluation) finish(ctx context.Context, governing ReasonCode) (decision Decision, returnErr error) {
 	_, span := s.session.engine.options.tracer.Start(ctx, telemetry.SpanMap)
 	defer span.End()
 
@@ -460,22 +484,44 @@ func (s *evaluation) finish(ctx context.Context, governing ReasonCode) (Decision
 		outcome = "failed"
 	}
 	options := s.session.engine.options
-	options.metrics.Counter(telemetry.MetricEvalTotal,
-		telemetry.Label{Key: telemetry.LabelDomain, Value: family.Domain},
-		telemetry.Label{Key: telemetry.LabelOutcome, Value: outcome},
-		telemetry.Label{Key: telemetry.LabelReasonCode, Value: governing.String()},
-	).Inc()
+	defer func() {
+		reason := governing.String()
+		if returnErr != nil {
+			outcome = "error"
+			reason = "AUDIT_PERSISTENCE_ERROR"
+		}
+		options.metrics.Counter(telemetry.MetricEvalTotal,
+			telemetry.Label{Key: telemetry.LabelDomain, Value: family.Domain},
+			telemetry.Label{Key: telemetry.LabelOutcome, Value: outcome},
+			telemetry.Label{Key: telemetry.LabelReasonCode, Value: reason},
+		).Inc()
+		options.metrics.Histogram(telemetry.MetricEvalDuration,
+			telemetry.Label{Key: telemetry.LabelDomain, Value: family.Domain},
+			telemetry.Label{Key: telemetry.LabelRuleSet, Value: family.RuleSet},
+			telemetry.Label{Key: telemetry.LabelName, Value: family.Name},
+			telemetry.Label{Key: telemetry.LabelOutcome, Value: outcome},
+		).Observe(float64(time.Since(s.startedAt).Microseconds()) / 1000)
+		if s.decision.Failed || returnErr != nil {
+			options.metrics.Counter(telemetry.MetricEvalErrors,
+				telemetry.Label{Key: telemetry.LabelReason, Value: reason}).Inc()
+		}
+	}()
+	span.SetAttr(telemetry.AttrReasonCode, governing.String())
+	s.session.span.SetAttr(telemetry.AttrReasonCode, governing.String())
 	if s.decision.Failed {
-		options.metrics.Counter(telemetry.MetricEvalErrors,
-			telemetry.Label{Key: telemetry.LabelReason, Value: governing.String()}).Inc()
+		recordSpanFailure(span, governing)
+		recordSpanFailure(s.session.span, governing)
 	}
-	s.session.span.SetAttr("reason", governing.String())
 
 	record := s.auditRecord()
 	if durable, ok := options.decisionLogger.(audit.DurableDecisionLogger); ok {
 		if err := durable.LogDurably(ctx, record); err != nil {
-			span.RecordError(err)
-			return s.decision, fmt.Errorf("persist decision audit %q: %w", s.decision.DecisionID, err)
+			recordSpanError(span, "AUDIT_PERSISTENCE_ERROR")
+			recordSpanError(s.session.span, "AUDIT_PERSISTENCE_ERROR")
+			return s.decision, &sanitizedOperationalError{
+				message: fmt.Sprintf("persist decision audit %q failed", s.decision.DecisionID),
+				cause:   err,
+			}
 		}
 	} else {
 		// Best-effort loggers remain asynchronous and do not extend decision
@@ -485,8 +531,16 @@ func (s *evaluation) finish(ctx context.Context, governing ReasonCode) (Decision
 	return s.decision, nil
 }
 
+func finishStageSpan(span telemetry.Span, failure *ReasonCode) {
+	if failure != nil {
+		recordSpanFailure(span, *failure)
+	}
+	span.End()
+}
+
 func (s *evaluation) auditRecord() audit.Record {
 	family := s.request.Routing.RuleKey.Family()
+	redaction := redactor{fields: s.fieldRegistry()}
 	record := audit.Record{
 		DecisionID: s.decision.DecisionID,
 		Tenant:     s.request.Tenant.ID,
@@ -496,8 +550,9 @@ func (s *evaluation) auditRecord() audit.Record {
 		SubjectType:  s.request.Subject.Type,
 		SubjectID:    s.request.Subject.Identifier.Value,
 		NodeID:       s.request.Subject.NodeID,
-		Result:       s.decision.Result,
+		Result:       redaction.auditResult(s.decision.Result),
 		InputsHash:   s.inputsHash,
+		Inputs:       s.exactInputs,
 		Failed:       s.decision.Failed,
 		AsOf:         s.decision.AsOf, ValidAt: s.decision.ValidAt,
 		RunID: s.decision.RunID, HierarchySnapshotID: s.decision.HierarchySnapshotID,
@@ -534,16 +589,20 @@ func (s *evaluation) auditRecord() audit.Record {
 }
 
 func hashInputs(facts, attributes map[string]any) string {
-	payload := struct {
-		Facts      map[string]any `json:"facts"`
-		Attributes map[string]any `json:"attributes"`
-	}{Facts: facts, Attributes: attributes}
+	payload := audit.Inputs{Facts: facts, Attributes: attributes}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return ""
 	}
 	digest := sha256.Sum256(encoded)
 	return hex.EncodeToString(digest[:])
+}
+
+func captureAuditInputs(facts, attributes map[string]any) *audit.Inputs {
+	return &audit.Inputs{
+		Facts:      deepcopy.Map(facts),
+		Attributes: deepcopy.Map(attributes),
+	}
 }
 
 // validateRequest checks the envelope before anything is looked up.
@@ -581,6 +640,9 @@ func (s *evaluation) validateRequest() *ReasonCode {
 	if s.request.Subject.Type == "" || s.request.Subject.Identifier.Value == "" {
 		return fail(ReasonSchemaInvalid)
 	}
+	if s.config.RequireIdempotency && !validUUID(s.request.IdempotencyKey) {
+		return fail(ReasonSchemaInvalid)
+	}
 	// An employee decision without a node cannot be placed in the hierarchy,
 	// and precedence is derived from that placement.
 	if s.request.Subject.Type == "employee" && s.request.Subject.NodeID == "" {
@@ -599,6 +661,13 @@ func (s *evaluation) period() string {
 		return ""
 	}
 	return s.decision.ValidAt.UTC().Format("2006-01")
+}
+
+func (s *evaluation) fieldRegistry() *registry.Registry {
+	if s.session.snapshot == nil {
+		return nil
+	}
+	return s.session.snapshot.Registry()
 }
 
 func (s *evaluation) staleThreshold() float64 {
@@ -710,7 +779,8 @@ func isPinFailure(err error) bool {
 		errors.Is(err, store.ErrRunTenantMismatch)
 }
 
-func evaluatedFrom(result resolve.Result) []Evaluated {
+func evaluatedFrom(result resolve.Result, fields *registry.Registry) []Evaluated {
+	redaction := redactor{fields: fields}
 	evaluated := make([]Evaluated, 0, len(result.Candidates))
 	for _, candidate := range result.Candidates {
 		if candidate.Rule == nil {
@@ -723,7 +793,7 @@ func evaluatedFrom(result resolve.Result) []Evaluated {
 			Order:        candidate.Precedence.Order, Depth: candidate.Precedence.Depth,
 			OnPath: candidate.OnPath, FiltersMatched: candidate.FiltersMatched,
 			Winner: candidate.Winner, EliminatedBy: candidate.EliminatedBy,
-			Reason: candidate.Reason,
+			Reason: redaction.candidateReason(candidate),
 		})
 	}
 	if len(evaluated) == 0 {

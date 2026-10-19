@@ -94,7 +94,7 @@ the last one is a concern.
 |---|---|---|
 | `Cache.Apply(Bundle) error` | `Cache.Replace(Bundle) error` | Names the all-or-nothing semantics: the snapshot is replaced, never merged |
 | `Cache.Candidates(tenant string, f rule.Family, at time.Time)` | `Candidates(tenant, domain, ruleSet, name string, at time.Time)` | The four parts are the catalog key; `rule.Family` would be unpacked immediately |
-| `Cache.Rule(tenant, key, version) (*RuleDefinition, bool)` | `Cache.Version(tenant, key, version) []*RuleDefinition` | One key and version legitimately has several anchored variants — a baseline and an employee exception — which the single-value shape cannot express |
+| `Cache.Rule(tenant, key, version) (*RuleDefinition, bool)` | `Cache.Version(tenant, key, version) []*RuleDefinition` | One key and version legitimately has several node-anchored or attribute-filtered variants, which the single-value shape cannot express |
 | `Cache.Versions(...) []string` | `Versions(...) []*RuleDefinition` | Callers need the effective dates and status to choose, not just the strings |
 | `Cache.Manifests() map[string]Manifest` | *(was missing; now restored alongside `Manifest(name)`)* | `fact.NewResolver` takes the whole set, so the cache has to be able to enumerate it |
 | `CacheStats` | `Stats` | `store.Stats` does not need the package name repeated |
@@ -102,22 +102,13 @@ the last one is a concern.
 | `Bundle.HierarchyTypes` + `Bundle.HierarchyNodes` | `Bundle.Hierarchy HierarchyBundle` | Keeps the two halves of one artifact together in the wire form |
 | `Loader{LoadAll, Changes}` | `Loader{LoadAll}` + `ChangesLoader{LoadChanges}` | A file loader has no real changes feed; small interfaces are declared where consumed |
 | `store/index.go` | catalog index inside `store/snapshot.go` | The index is only meaningful as part of a snapshot and shares its construction |
-| `manifest.Store interface{Get(ctx, runID) (RunManifest, bool, error)}` | `manifest.Reader interface{Get(string) (RunManifest, bool)}`, with `Store` as the in-memory implementation | **Open.** See below |
+| `manifest.Store interface{Get(ctx, runID) (RunManifest, bool, error)}` | `manifest.Reader interface{Get(string) (RunManifest, bool)}`, with `InMemoryStore` as the local implementation | **Resolved by ADR 11.** |
 
-### The manifest reader signature is an open question
+### The manifest reader signature is resolved
 
-`manifest.Reader.Get` drops both `context.Context` and `error`. For the
-in-memory store that is honest — it cannot fail or block. But run manifests are
-created and frozen by the Rule Service (plan section 5.3), so a consumer will
-eventually read them over the network, and then:
-
-- without a context, a remote read cannot honour a deadline or cancellation, on
-  a path that runs inside a payroll decision;
-- without an error, "this run has no manifest" is indistinguishable from "the
-  manifest store is unreachable", and those have opposite correct responses —
-  the first is `PINNED_VERSION_UNAVAILABLE` and fails the decision closed, the
-  second is an infrastructure fault the caller should retry or alert on.
-
-The specification's signature anticipated both. Widening `Reader` back to
-`Get(ctx, runID) (RunManifest, bool, error)` costs little now and is awkward
-later, once services depend on it. Raised in `docs/OPEN_QUESTIONS.md`.
+`manifest.Reader.Get` deliberately drops both `context.Context` and `error`
+because evaluation may consult only process-local memory. The service obtains
+the manifest from the Rule Service before evaluation and synchronizes it into
+`manifest.InMemoryStore`. Network failures therefore belong to the control
+path, while a missing local manifest fails the decision closed. See
+[ADR 11](0011-run-manifests-are-local-on-the-hot-path.md).

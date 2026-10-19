@@ -66,7 +66,7 @@ func TestFaultFormattingAndCode(t *testing.T) {
 			t.Fatalf("Error() = %q, missing %q", message, want)
 		}
 	}
-	if !errors.Is(fault, cause) || fault.Unwrap() != cause {
+	if !errors.Is(fault, cause) || !errors.Is(fault.Unwrap(), cause) {
 		t.Fatal("Unwrap did not expose the cause")
 	}
 	if bare := (&fact.Fault{Code: fact.ReasonUnresolvable}).Error(); bare != fact.ReasonUnresolvable {

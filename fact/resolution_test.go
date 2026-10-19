@@ -423,10 +423,10 @@ func TestFT12TimeoutFailsClosed(t *testing.T) {
 // TestFT13DeDuplicationAcrossPoints covers FT13: several decision points
 // sharing a fact execute the query once, and the reuse is recorded.
 func TestFT13DeDuplicationAcrossPoints(t *testing.T) {
-	resolver, executor := attendanceResolver(t)
+	_, executor := attendanceResolver(t)
 	addAttendance(t, executor, []bool{true, true, false})
 	counting := &countingExecutor{Executor: executor}
-	resolver = mustResolver(t, mustRegistry(t, countField("one", 1), countField("two", 2)),
+	resolver := mustResolver(t, mustRegistry(t, countField("one", 1), countField("two", 2)),
 		map[string]dataset.Manifest{"attendance.days": mustManifest(t, "attendance.days")}, counting, nil)
 
 	// One session, four points, two distinct facts between them.
@@ -451,9 +451,9 @@ func TestFT13DeDuplicationAcrossPoints(t *testing.T) {
 
 // TestFT14RequestSuppliedFactIsNotFetched covers FT14.
 func TestFT14RequestSuppliedFactIsNotFetched(t *testing.T) {
-	resolver, executor := attendanceResolver(t)
+	_, executor := attendanceResolver(t)
 	counting := &countingExecutor{Executor: executor}
-	resolver = mustResolver(t, mustRegistry(t, countField("one", 1)),
+	resolver := mustResolver(t, mustRegistry(t, countField("one", 1)),
 		map[string]dataset.Manifest{"attendance.days": mustManifest(t, "attendance.days")}, counting, nil)
 	resolution, err := resolver.Resolve(context.Background(), []string{"one"},
 		map[string]any{"one": 7}, params(), nil)

@@ -229,7 +229,15 @@ func TestSlogSinkWritesOneLinePerRecord(t *testing.T) {
 	}), nil)
 	sink := NewSlogSink(slog.New(handler))
 	batch := []Record{
-		{DecisionID: "a", Tenant: "RWB", SubjectID: "secret-employee", InputsHash: "digest", Failed: false},
+		{
+			DecisionID: "a", Tenant: "RWB", SubjectID: "secret-employee",
+			CorrelationID: "corr-safe", InputsHash: "digest", Failed: false,
+			Result:     map[string]any{"email": "person@example.com"},
+			Candidates: []Candidate{{Reason: "name is Private Person"}},
+			Inputs: &Inputs{
+				Facts: map[string]any{"email": "audit-input@example.com"},
+			},
+		},
 		{DecisionID: "b", Tenant: "RWB", Failed: true, ReasonCodes: []string{"NO_RULE_RESOLVED"}},
 	}
 	if err := sink.Write(context.Background(), batch); err != nil {
@@ -238,8 +246,15 @@ func TestSlogSinkWritesOneLinePerRecord(t *testing.T) {
 	if lines != 2 {
 		t.Fatalf("wrote %d lines for 2 records", lines)
 	}
-	if strings.Contains(output.String(), "secret-employee") || !strings.Contains(output.String(), "digest") {
-		t.Fatalf("operational log leaked a subject or omitted the safe digest: %s", output.String())
+	logOutput := output.String()
+	for _, secret := range []string{"secret-employee", "person@example.com", "audit-input@example.com", "Private Person"} {
+		if strings.Contains(logOutput, secret) {
+			t.Fatalf("operational log leaked %q: %s", secret, logOutput)
+		}
+	}
+	if !strings.Contains(logOutput, "decisionId=a") || !strings.Contains(logOutput, "correlationId=corr-safe") ||
+		!strings.Contains(logOutput, "digest") {
+		t.Fatalf("operational log omitted required safe context: %s", logOutput)
 	}
 
 	// A cancelled context stops the write rather than finishing it.

@@ -5,9 +5,10 @@ and business time. It is pure: no I/O, clock reads, logging, or mutation.
 
 ## Model
 
-A tenant defines an organization tree of any depth. A rule is anchored to one
-node or, for an approved exception, one employee. The hierarchy returns paths
-in root-to-leaf order.
+A tenant defines an organization tree of any depth. Every rule is anchored to
+exactly one hierarchy node. The hierarchy returns paths in root-to-leaf order.
+There is no separate employee anchor: an employee-specific policy must use an
+approved hierarchy leaf node or a same-node attribute filter.
 
 Given `G001 -> C002 -> D002 -> BR001`, a matching `D002` rule outranks a
 matching `C002` rule. Level names are descriptive; no fixed global hierarchy
@@ -23,9 +24,9 @@ For the version-constrained candidates of one exact rule key:
 
 1. Reject cross-tenant, non-evaluable, and out-of-interval candidates.
 2. Compute the subject's effective root-to-leaf path.
-3. Retain employee exceptions for that subject and node anchors on the path.
+3. Retain node anchors on the subject's path.
 4. Retain candidates whose attribute filters all match.
-5. Prefer an employee exception, then greater anchor depth.
+5. Prefer greater anchor depth.
 6. At one anchor, prefer more attribute filters, then lower explicit
    `tieBreakPriority` according to the resolver's documented ordering.
 7. If candidates remain equal, choose by the stable candidate identity and
@@ -88,8 +89,11 @@ default for one `domain/ruleSet/name`; absence always fails closed.
 ## Contract tests
 
 The resolver suite covers deeper anchors, subtree inheritance, root baselines,
-employee exceptions, off-path exclusion, filter narrowing, deterministic
+rejection of the retired employee-anchor kind, off-path exclusion, filter narrowing, deterministic
 conflict fallback, inserted and repeated levels, inactive nodes, cross-tenant
 defense, explicit priorities, and stable explanations. Property tests cover
-monotonicity, order-independent determinism, and malformed-input no-panic
-behavior.
+monotonicity across arbitrary N-level hierarchies whose type order is unrelated
+to depth, order-independent determinism, and malformed-input no-panic behavior.
+The monotonicity property deliberately gives shallower candidates more matching
+filters and a preferred priority, proving neither can promote a shallow anchor
+over a deeper eligible node.

@@ -23,6 +23,12 @@ var (
 	ErrFactTimeout = errors.New("fact fetch timed out")
 	// ErrConfig indicates invalid library construction settings.
 	ErrConfig = errors.New("invalid rule engine configuration")
+	// ErrIdempotency indicates that a money-moving operation could not be
+	// safely deduplicated.
+	ErrIdempotency = errors.New("idempotency operation failed")
+	// ErrIdempotencyConflict means a key was reused for different decision
+	// inputs before its retention window expired.
+	ErrIdempotencyConflict = errors.New("idempotency key conflict")
 )
 
 // Error carries structured, non-PII context for an operational failure.

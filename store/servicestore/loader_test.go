@@ -2,11 +2,13 @@ package servicestore
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -34,7 +36,10 @@ func TestLoaderIsLazyRetriesAndUsesExpectedQueries(t *testing.T) {
 		_ = json.NewEncoder(writer).Encode(map[string]any{"bundle": store.Bundle{}, "cursor": "cursor-2"})
 	}))
 	defer server.Close()
-	loader, err := New(Config{BaseURL: server.URL, Service: "leave", Tenant: "T1", MaxAttempts: 2, RetryBackoff: time.Nanosecond})
+	config := localConfig(server.URL)
+	config.MaxAttempts = 2
+	config.RetryBackoff = time.Nanosecond
+	loader, err := New(config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +62,11 @@ func TestLoaderReportsStalenessAfterFailure(t *testing.T) {
 	defer server.Close()
 	clock := &fakeClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	metrics := newRecordingMetrics()
-	loader, err := New(Config{BaseURL: server.URL, Service: "leave", Tenant: "T1", MaxAttempts: 1, Clock: clock, Metrics: metrics})
+	config := localConfig(server.URL)
+	config.MaxAttempts = 1
+	config.Clock = clock
+	config.Metrics = metrics
+	loader, err := New(config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,10 +83,20 @@ func TestConfigValidation(t *testing.T) {
 	tests := []Config{
 		{},
 		{BaseURL: "ftp://example.test", Service: "leave", Tenant: "T"},
-		{BaseURL: "http://example.test", Tenant: "T"},
-		{BaseURL: "http://example.test", Service: "leave"},
-		{BaseURL: "http://example.test", Service: "leave", Tenant: "T", MaxAttempts: -1},
-		{BaseURL: "http://example.test", Service: "leave", Tenant: "T", RetryBackoff: -1},
+		{BaseURL: "https://example.test", Tenant: "T"},
+		{BaseURL: "https://example.test", Service: "leave"},
+		{BaseURL: "https://example.test", Service: "leave", Tenant: "T", MaxAttempts: -1},
+		{BaseURL: "https://example.test", Service: "leave", Tenant: "T", MaxAttempts: maxConfiguredAttempts + 1},
+		{BaseURL: "https://example.test", Service: "leave", Tenant: "T", RetryBackoff: -1},
+		{BaseURL: "https://example.test", Service: "leave", Tenant: "T", RequestTimeout: -1},
+		{BaseURL: "https://example.test", Service: "leave", Tenant: "T", MaxResponseBytes: -1},
+		{BaseURL: "https://example.test", Service: "leave", Tenant: "T", MaxResponseBytes: maxConfiguredBodyBytes + 1},
+		{BaseURL: "https://user:password@example.test", Service: "leave", Tenant: "T"},
+		{BaseURL: "https://example.test?token=secret", Service: "leave", Tenant: "T"},
+		{BaseURL: "https://example.test#fragment", Service: "leave", Tenant: "T"},
+		{BaseURL: "http://example.test", Service: "leave", Tenant: "T", AllowInsecureHTTP: true},
+		{BaseURL: "https://example.test", Service: " leave", Tenant: "T"},
+		{BaseURL: "https://example.test", Service: "leave", Tenant: "T\n2"},
 	}
 	for index, config := range tests {
 		if _, err := New(config); err == nil {
@@ -91,10 +110,14 @@ func TestDirectBundleHeadersAndDecodeFailures(t *testing.T) {
 		if request.Header.Get("Authorization") != "Bearer token" {
 			t.Error("configured header was not sent")
 		}
+		writer.Header().Set("Content-Type", "application/vnd.arrowhr.bundle+json")
 		_ = json.NewEncoder(writer).Encode(store.Bundle{Cursor: "direct"})
 	}))
 	defer server.Close()
-	loader, err := New(Config{BaseURL: server.URL, Service: "leave", Tenant: "T", Headers: map[string]string{"Authorization": "Bearer token"}, MaxAttempts: 1})
+	config := localConfig(server.URL)
+	config.Headers = map[string]string{"Authorization": "Bearer token"}
+	config.MaxAttempts = 1
+	loader, err := New(config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +138,7 @@ func TestNetworkRetriesAndContextCancellation(t *testing.T) {
 		attempts.Add(1)
 		return nil, errors.New("offline")
 	})}
-	loader, err := New(Config{BaseURL: "http://example.test", Service: "leave", Tenant: "T", Client: client, MaxAttempts: 2, RetryBackoff: time.Nanosecond})
+	loader, err := New(Config{BaseURL: "https://example.test", Service: "leave", Tenant: "T", Client: client, MaxAttempts: 2, RetryBackoff: time.Nanosecond})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,15 +157,198 @@ func TestNetworkRetriesAndContextCancellation(t *testing.T) {
 
 func TestResponseReadFailure(t *testing.T) {
 	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: http.StatusOK, Body: failingBody{}}, nil
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: failingBody{}}, nil
 	})}
-	loader, err := New(Config{BaseURL: "http://example.test", Service: "leave", Tenant: "T", Client: client, MaxAttempts: 1})
+	loader, err := New(Config{BaseURL: "https://example.test", Service: "leave", Tenant: "T", Client: client, MaxAttempts: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := loader.LoadAll(context.Background()); err == nil {
 		t.Fatal("response read failure was hidden")
 	}
+}
+
+func TestHTTPSIsRequiredUnlessLoopbackHTTPIsExplicitlyEnabled(t *testing.T) {
+	if _, err := New(Config{BaseURL: "http://127.0.0.1:8080", Service: "leave", Tenant: "T"}); err == nil {
+		t.Fatal("unencrypted loopback URL succeeded without explicit opt-in")
+	}
+	if _, err := New(localConfig("http://127.0.0.1:8080")); err != nil {
+		t.Fatalf("explicit loopback HTTP failed: %v", err)
+	}
+	if _, err := New(localConfig("http://[::1]:8080")); err != nil {
+		t.Fatalf("explicit IPv6 loopback HTTP failed: %v", err)
+	}
+}
+
+func TestLoaderRejectsRedirectWithoutLeakingCredentials(t *testing.T) {
+	var redirected atomic.Bool
+	target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		redirected.Store(true)
+	}))
+	defer target.Close()
+	origin := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		http.Redirect(writer, request, target.URL, http.StatusTemporaryRedirect)
+	}))
+	defer origin.Close()
+	config := localConfig(origin.URL)
+	config.Headers = map[string]string{"Authorization": "Bearer secret"}
+	config.MaxAttempts = 1
+	loader, err := New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loader.LoadAll(context.Background()); err == nil || !strings.Contains(err.Error(), "status 307") {
+		t.Fatalf("redirect error = %v", err)
+	}
+	if redirected.Load() {
+		t.Fatal("redirect target was called")
+	}
+}
+
+func TestLoaderEnforcesResponseContract(t *testing.T) {
+	tests := []struct {
+		name        string
+		contentType string
+		body        string
+		maximum     int64
+		want        string
+	}{
+		{name: "missing content type", body: `{}`, want: "unsupported content type"},
+		{name: "non JSON content type", contentType: "text/plain", body: `{}`, want: "unsupported content type"},
+		{name: "invalid content type", contentType: "application/json; charset=", body: `{}`, want: "unsupported content type"},
+		{name: "oversized response", contentType: "application/json", body: `{"cursor":"too-large"}`, maximum: 8, want: "exceeds configured limit"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				if got := request.Header.Get("Accept"); got != "application/json" {
+					t.Errorf("Accept = %q", got)
+				}
+				if test.contentType != "" {
+					writer.Header().Set("Content-Type", test.contentType)
+				}
+				_, _ = io.WriteString(writer, test.body)
+			}))
+			defer server.Close()
+			config := localConfig(server.URL)
+			config.MaxAttempts = 1
+			config.MaxResponseBytes = test.maximum
+			loader, err := New(config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := loader.LoadAll(context.Background()); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("LoadAll error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestLoaderBoundsEveryAttemptWithAContextDeadline(t *testing.T) {
+	var sawDeadline atomic.Bool
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		_, sawDeadlineValue := request.Context().Deadline()
+		sawDeadline.Store(sawDeadlineValue)
+		<-request.Context().Done()
+		return nil, request.Context().Err()
+	})}
+	loader, err := New(Config{
+		BaseURL: "https://example.test", Service: "leave", Tenant: "T", Client: client,
+		MaxAttempts: 1, RequestTimeout: 5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now()
+	if _, err := loader.LoadAll(context.Background()); err == nil {
+		t.Fatal("timed-out request succeeded")
+	}
+	if !sawDeadline.Load() {
+		t.Fatal("request did not carry a deadline")
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("request timeout took %v", elapsed)
+	}
+}
+
+func TestLoaderRetriesOnlyTransientStatuses(t *testing.T) {
+	for _, test := range []struct {
+		status int
+		calls  int32
+	}{
+		{status: http.StatusServiceUnavailable, calls: 2},
+		{status: http.StatusNotImplemented, calls: 1},
+	} {
+		t.Run(http.StatusText(test.status), func(t *testing.T) {
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+				calls.Add(1)
+				writer.WriteHeader(test.status)
+			}))
+			defer server.Close()
+			config := localConfig(server.URL)
+			config.MaxAttempts = 2
+			config.RetryBackoff = time.Nanosecond
+			loader, err := New(config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, _ = loader.LoadAll(context.Background())
+			if got := calls.Load(); got != test.calls {
+				t.Fatalf("calls = %d, want %d", got, test.calls)
+			}
+		})
+	}
+}
+
+func TestLoaderRejectsUnsafeOrAmbiguousHeaders(t *testing.T) {
+	for _, headers := range []map[string]string{
+		{"Accept": "text/plain"},
+		{"Accept-Encoding": "gzip"},
+		{"Connection": "close"},
+		{"Host": "attacker.test"},
+		{"Bad Header": "value"},
+		{"X-Test": "safe\r\nInjected: true"},
+		{"Authorization": "one", "authorization": "two"},
+	} {
+		config := Config{BaseURL: "https://example.test", Service: "leave", Tenant: "T", Headers: headers}
+		if _, err := New(config); err == nil {
+			t.Errorf("New accepted headers %#v", headers)
+		}
+	}
+}
+
+func TestDefaultClientUsesModernTLSAndCallerClientIsNotMutated(t *testing.T) {
+	loader, err := New(Config{BaseURL: "https://example.test", Service: "leave", Tenant: "T"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport, ok := loader.client.Transport.(*http.Transport)
+	if !ok || transport.TLSClientConfig == nil || transport.TLSClientConfig.MinVersion < tls.VersionTLS12 {
+		t.Fatalf("default transport TLS config = %#v", loader.client.Transport)
+	}
+	originalRedirect := func(*http.Request, []*http.Request) error { return nil }
+	original := &http.Client{CheckRedirect: originalRedirect}
+	loader, err = New(Config{BaseURL: "https://example.test", Service: "leave", Tenant: "T", Client: original})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if original.CheckRedirect == nil {
+		t.Fatal("caller's client was mutated")
+	}
+	if err := original.CheckRedirect(nil, nil); err != nil {
+		t.Fatalf("caller's redirect policy was changed: %v", err)
+	}
+	if loader.client == original {
+		t.Fatal("loader retained the caller's mutable client pointer")
+	}
+	if err := loader.client.CheckRedirect(nil, nil); !errors.Is(err, http.ErrUseLastResponse) {
+		t.Fatalf("loader redirect policy error = %v", err)
+	}
+}
+
+func localConfig(baseURL string) Config {
+	return Config{BaseURL: baseURL, Service: "leave", Tenant: "T1", AllowInsecureHTTP: true}
 }
 
 type fakeClock struct{ now time.Time }

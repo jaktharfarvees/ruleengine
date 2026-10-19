@@ -32,7 +32,7 @@ func NewRegistry(fields []FieldDefinition) (*Registry, error) {
 	for index := range fields {
 		field := cloneField(fields[index])
 		if err := validateDefinition(field); err != nil {
-			return nil, fmt.Errorf("%w: field at index %d: %v", ErrInvalidRegistry, index, err)
+			return nil, fmt.Errorf("%w: field at index %d: %w", ErrInvalidRegistry, index, err)
 		}
 		if _, exists := registry.fields[field.Name]; exists {
 			return nil, fmt.Errorf("%w: duplicate field %q", ErrInvalidRegistry, field.Name)
@@ -180,41 +180,41 @@ func cloneReflect(reflected reflect.Value) reflect.Value {
 		if reflected.IsNil() {
 			return reflect.Zero(reflected.Type())
 		}
-		copy := reflect.New(reflected.Type()).Elem()
-		copy.Set(cloneReflect(reflected.Elem()))
-		return copy
+		cloned := reflect.New(reflected.Type()).Elem()
+		cloned.Set(cloneReflect(reflected.Elem()))
+		return cloned
 	case reflect.Pointer:
 		if reflected.IsNil() {
 			return reflect.Zero(reflected.Type())
 		}
-		copy := reflect.New(reflected.Elem().Type())
-		copy.Elem().Set(cloneReflect(reflected.Elem()))
-		return copy
+		cloned := reflect.New(reflected.Elem().Type())
+		cloned.Elem().Set(cloneReflect(reflected.Elem()))
+		return cloned
 	case reflect.Slice:
 		if reflected.IsNil() {
 			return reflect.Zero(reflected.Type())
 		}
-		copy := reflect.MakeSlice(reflected.Type(), reflected.Len(), reflected.Len())
+		cloned := reflect.MakeSlice(reflected.Type(), reflected.Len(), reflected.Len())
 		for index := 0; index < reflected.Len(); index++ {
-			copy.Index(index).Set(cloneReflect(reflected.Index(index)))
+			cloned.Index(index).Set(cloneReflect(reflected.Index(index)))
 		}
-		return copy
+		return cloned
 	case reflect.Array:
-		copy := reflect.New(reflected.Type()).Elem()
+		cloned := reflect.New(reflected.Type()).Elem()
 		for index := 0; index < reflected.Len(); index++ {
-			copy.Index(index).Set(cloneReflect(reflected.Index(index)))
+			cloned.Index(index).Set(cloneReflect(reflected.Index(index)))
 		}
-		return copy
+		return cloned
 	case reflect.Map:
 		if reflected.IsNil() {
 			return reflect.Zero(reflected.Type())
 		}
-		copy := reflect.MakeMapWithSize(reflected.Type(), reflected.Len())
+		cloned := reflect.MakeMapWithSize(reflected.Type(), reflected.Len())
 		iterator := reflected.MapRange()
 		for iterator.Next() {
-			copy.SetMapIndex(iterator.Key(), cloneReflect(iterator.Value()))
+			cloned.SetMapIndex(iterator.Key(), cloneReflect(iterator.Value()))
 		}
-		return copy
+		return cloned
 	default:
 		return reflected
 	}

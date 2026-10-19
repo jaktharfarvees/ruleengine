@@ -77,17 +77,11 @@ func (r RuleDefinition) Validate() error {
 }
 
 func validateAnchor(anchor Anchor) error {
-	switch anchor.Kind {
-	case AnchorNode:
-		if anchor.NodeID == "" || anchor.EmployeeID != "" {
-			return invalid("anchor", fmt.Errorf("node anchor requires only nodeId"))
-		}
-	case AnchorEmployee:
-		if anchor.EmployeeID == "" || anchor.NodeID != "" || anchor.Reason == "" {
-			return invalid("anchor", fmt.Errorf("employee anchor requires employeeId and reason"))
-		}
-	default:
+	if anchor.Kind != AnchorNode {
 		return invalid("anchor.kind", fmt.Errorf("unsupported value"))
+	}
+	if anchor.NodeID == "" {
+		return invalid("anchor", fmt.Errorf("node anchor requires nodeId"))
 	}
 	return nil
 }

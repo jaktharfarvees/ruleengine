@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -18,9 +17,6 @@ func versionsOf(definitions []*rule.RuleDefinition) string {
 	parts := make([]string, 0, len(definitions))
 	for _, definition := range definitions {
 		anchor := definition.Scope.Anchor.NodeID
-		if anchor == "" {
-			anchor = "employee:" + definition.Scope.Anchor.EmployeeID
-		}
 		parts = append(parts, definition.Version+"@"+anchor)
 	}
 	return "[" + strings.Join(parts, " ") + "]"
@@ -259,7 +255,7 @@ func TestPinnedVersionMustBeEvaluable(t *testing.T) {
 			definition.Status = status
 			cache := selectionCache(t, anchoredRule("1.0.0", "G001", january), definition)
 
-			_, err := NewVersionResolver(cache, nil).Resolve(context.Background(), VersionRequest{
+			_, err := NewVersionResolver(cache, nil).Resolve(VersionRequest{
 				Tenant: "T1", RuleKey: definition.RuleKey, ExplicitPin: "2.0.0", EffectiveAt: at,
 			})
 			if err == nil {
@@ -270,7 +266,7 @@ func TestPinnedVersionMustBeEvaluable(t *testing.T) {
 			}
 			// The evaluable version is still reachable, so the refusal is
 			// about the pinned version and not about the rule.
-			selected, err := NewVersionResolver(cache, nil).Resolve(context.Background(), VersionRequest{
+			selected, err := NewVersionResolver(cache, nil).Resolve(VersionRequest{
 				Tenant: "T1", RuleKey: definition.RuleKey, EffectiveAt: at,
 			})
 			if err != nil || len(selected) != 1 || selected[0].Version != "1.0.0" {

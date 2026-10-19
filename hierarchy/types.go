@@ -37,11 +37,10 @@ type PathEntry struct {
 
 // DerivedPrecedence is the read-only precedence obtained from an anchor.
 type DerivedPrecedence struct {
-	Order               int    `json:"order"`
-	Depth               int    `json:"depth"`
-	TypeID              string `json:"typeId"`
-	TypeName            string `json:"typeName"`
-	NodeName            string `json:"nodeName"`
-	NodeID              string `json:"nodeId"`
-	IsEmployeeException bool   `json:"isEmployeeException"`
+	Order    int    `json:"order"`
+	Depth    int    `json:"depth"`
+	TypeID   string `json:"typeId"`
+	TypeName string `json:"typeName"`
+	NodeName string `json:"nodeName"`
+	NodeID   string `json:"nodeId"`
 }

@@ -15,7 +15,9 @@ import (
 	"github.com/arrowhr/ruleengine/rule"
 )
 
-var parseOperators = []string{"notIn", "between", "in", ">=", "<=", "!=", "==", ">", "<"}
+const notInOperator = "notIn"
+
+var parseOperators = []string{notInOperator, "between", "in", ">=", "<=", "!=", "==", ">", "<"}
 
 // Engine is the minimal reference implementation of engine.Engine.
 type Engine struct{}
@@ -142,7 +144,7 @@ func evaluateCondition(actual any, expression string, facts map[string]any) (boo
 		return false, fmt.Errorf("unsupported expression %q", expression)
 	}
 	switch operator {
-	case "in", "notIn":
+	case "in", notInOperator:
 		values, err := resolveSet(operand, facts)
 		if err != nil {
 			return false, err
@@ -154,7 +156,7 @@ func evaluateCondition(actual any, expression string, facts map[string]any) (boo
 				break
 			}
 		}
-		if operator == "notIn" {
+		if operator == notInOperator {
 			return !matched, nil
 		}
 		return matched, nil
@@ -171,8 +173,8 @@ func evaluateCondition(actual any, expression string, facts map[string]any) (boo
 		if err != nil {
 			return false, err
 		}
-		bounds, comparable := compare(lower, upper)
-		if !comparable || bounds > 0 {
+		bounds, ordered := compare(lower, upper)
+		if !ordered || bounds > 0 {
 			return false, fmt.Errorf("between range is inverted or incomparable")
 		}
 		low, lowOK := compare(actual, lower)
@@ -189,8 +191,8 @@ func evaluateCondition(actual any, expression string, facts map[string]any) (boo
 		if operator == "!=" {
 			return !equal(actual, expected), nil
 		}
-		comparison, comparable := compare(actual, expected)
-		if !comparable {
+		comparison, ordered := compare(actual, expected)
+		if !ordered {
 			return false, fmt.Errorf("values are not comparable")
 		}
 		switch operator {
@@ -410,41 +412,41 @@ func cloneReflect(value reflect.Value) reflect.Value {
 		if value.IsNil() {
 			return reflect.Zero(value.Type())
 		}
-		copy := reflect.New(value.Type()).Elem()
-		copy.Set(cloneReflect(value.Elem()))
-		return copy
+		cloned := reflect.New(value.Type()).Elem()
+		cloned.Set(cloneReflect(value.Elem()))
+		return cloned
 	case reflect.Pointer:
 		if value.IsNil() {
 			return reflect.Zero(value.Type())
 		}
-		copy := reflect.New(value.Elem().Type())
-		copy.Elem().Set(cloneReflect(value.Elem()))
-		return copy
+		cloned := reflect.New(value.Elem().Type())
+		cloned.Elem().Set(cloneReflect(value.Elem()))
+		return cloned
 	case reflect.Slice:
 		if value.IsNil() {
 			return reflect.Zero(value.Type())
 		}
-		copy := reflect.MakeSlice(value.Type(), value.Len(), value.Len())
+		cloned := reflect.MakeSlice(value.Type(), value.Len(), value.Len())
 		for index := 0; index < value.Len(); index++ {
-			copy.Index(index).Set(cloneReflect(value.Index(index)))
+			cloned.Index(index).Set(cloneReflect(value.Index(index)))
 		}
-		return copy
+		return cloned
 	case reflect.Array:
-		copy := reflect.New(value.Type()).Elem()
+		cloned := reflect.New(value.Type()).Elem()
 		for index := 0; index < value.Len(); index++ {
-			copy.Index(index).Set(cloneReflect(value.Index(index)))
+			cloned.Index(index).Set(cloneReflect(value.Index(index)))
 		}
-		return copy
+		return cloned
 	case reflect.Map:
 		if value.IsNil() {
 			return reflect.Zero(value.Type())
 		}
-		copy := reflect.MakeMapWithSize(value.Type(), value.Len())
+		cloned := reflect.MakeMapWithSize(value.Type(), value.Len())
 		iterator := value.MapRange()
 		for iterator.Next() {
-			copy.SetMapIndex(iterator.Key(), cloneReflect(iterator.Value()))
+			cloned.SetMapIndex(iterator.Key(), cloneReflect(iterator.Value()))
 		}
-		return copy
+		return cloned
 	default:
 		return value
 	}

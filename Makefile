@@ -117,6 +117,7 @@ cover: test ## Enforce the repository and per-package coverage floors.
 tools: ## Build the offline developer tools.
 	$(GO) build -o bin/rulelint ./cmd/rulelint
 	$(GO) build -o bin/ruleplay ./cmd/ruleplay
+	$(GO) build -o bin/schemacompat ./cmd/schemacompat
 
 lint-fixtures: ## Validate the committed fixtures with rulelint.
 	$(GO) run ./cmd/rulelint -root testdata
@@ -127,19 +128,16 @@ example: ## Build and run the example service wiring.
 vuln: ## Scan dependencies for known vulnerabilities.
 	govulncheck ./...
 
-tidy: ## Tidy modules and fail when tracked module files change.
-	$(GO) mod tidy
-	@if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then git diff --exit-code -- go.mod go.sum; fi
+tidy: ## Verify module metadata is tidy without modifying the worktree.
+	$(GO) mod tidy -diff
+	$(GO) mod verify
 
 schema: ## Validate the embedded schemas against their fixtures.
 	@if [ -d schema ]; then $(GO) test ./schema; else echo "schema package is introduced in Phase 1"; fi
-	@# Schema changes must be additive (FULL_TRANSITIVE). v2 is the only
-	@# version, so there is nothing to compare against yet; the comparison is
-	@# added with the first v3 draft, against the embedded v2 copy.
-	@test -d schema/v3 && { echo "schema/v3 exists but no compatibility check is implemented"; exit 1; } || true
 
 schema-compat: ## Enforce the locked additive-only v2 schema contract.
-	$(GO) test ./schema -run '^TestV2CompatibilityBaseline$$'
+	$(GO) test ./internal/schemacompat ./schema -run '^(TestCheck|TestV2CompatibilityBaseline)'
+	$(GO) run ./cmd/schemacompat -baseline schema/compat/v2 -current schema/v2
 
 docs: ## Check package documentation and exported comments.
 	$(GO) vet ./...

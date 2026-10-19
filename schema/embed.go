@@ -147,6 +147,17 @@ func validateValue(schema map[string]any, value any, location string, root map[s
 		}
 		return fmt.Errorf("%s does not match any allowed shape", location)
 	}
+	if requirements, ok := schema["allOf"].([]any); ok {
+		for index, requirement := range requirements {
+			candidate, valid := requirement.(map[string]any)
+			if !valid {
+				return fmt.Errorf("%s allOf[%d] is not a schema", location, index)
+			}
+			if err := validateValue(candidate, value, location, root); err != nil {
+				return err
+			}
+		}
+	}
 	if expected, ok := schema["type"].(string); ok && !matchesType(expected, value) {
 		return fmt.Errorf("%s must be %s", location, expected)
 	}
@@ -174,11 +185,35 @@ func validateValue(schema map[string]any, value any, location string, root map[s
 		if minimum, ok := integerKeyword(schema, "minItems"); ok && len(array) < minimum {
 			return fmt.Errorf("%s must contain at least %d items", location, minimum)
 		}
+		if unique, _ := schema["uniqueItems"].(bool); unique {
+			for left := range array {
+				for right := 0; right < left; right++ {
+					if jsonEqual(array[left], array[right]) {
+						return fmt.Errorf("%s[%d] duplicates item %d", location, left, right)
+					}
+				}
+			}
+		}
 		if itemSchema, ok := schema["items"].(map[string]any); ok {
 			for index, item := range array {
 				if err := validateValue(itemSchema, item, fmt.Sprintf("%s[%d]", location, index), root); err != nil {
 					return err
 				}
+			}
+		}
+		if contains, ok := schema["contains"].(map[string]any); ok {
+			matched := 0
+			for _, item := range array {
+				if validateValue(contains, item, location, root) == nil {
+					matched++
+				}
+			}
+			minimum := 1
+			if configured, ok := integerKeyword(schema, "minContains"); ok {
+				minimum = configured
+			}
+			if matched < minimum {
+				return fmt.Errorf("%s must contain at least %d matching items", location, minimum)
 			}
 		}
 	}
@@ -207,6 +242,17 @@ func validateValue(schema map[string]any, value any, location string, root map[s
 			return fmt.Errorf("%s must be at least %v", location, minimum)
 		}
 	}
+	if condition, ok := schema["if"].(map[string]any); ok {
+		branch := "else"
+		if validateValue(condition, value, location, root) == nil {
+			branch = "then"
+		}
+		if selected, ok := schema[branch].(map[string]any); ok {
+			if err := validateValue(selected, value, location, root); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -220,12 +266,24 @@ func validateObject(schema map[string]any, object map[string]any, location strin
 		}
 	}
 	properties, _ := schema["properties"].(map[string]any)
-	additional, constrained := schema["additionalProperties"].(bool)
+	additionalAllowed := true
+	var additionalSchema map[string]any
+	switch additional := schema["additionalProperties"].(type) {
+	case bool:
+		additionalAllowed = additional
+	case map[string]any:
+		additionalSchema = additional
+	}
 	for name, value := range object {
 		raw, known := properties[name]
 		if !known {
-			if constrained && !additional {
+			if !additionalAllowed {
 				return fmt.Errorf("%s.%s is not allowed", location, name)
+			}
+			if additionalSchema != nil {
+				if err := validateValue(additionalSchema, value, location+"."+name, root); err != nil {
+					return err
+				}
 			}
 			continue
 		}

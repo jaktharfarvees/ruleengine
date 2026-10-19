@@ -18,7 +18,7 @@
     "anchor": {"$ref": "#/$defs/anchor"},
     "attributeFilters": {"type": "array", "items": {"$ref": "#/$defs/filter"}},
     "tieBreakPriority": {"type": "integer"},
-    "conflictPolicy": {"type": "string"},
+    "conflictPolicy": {"type": "string", "enum": ["most-specific-wins", "first", "collect"]},
     "effective": {
       "type": "object", "additionalProperties": false, "required": ["validFrom"],
       "properties": {
@@ -26,8 +26,8 @@
         "validTo": {"type": "string", "format": "date-time"}
       }
     },
-    "declaredInputs": {"type": "array", "items": {"type": "string", "minLength": 1}},
-    "declaredOutputs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "declaredInputs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "declaredOutputs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
     "decisionType": {"type": "string", "minLength": 1},
     "logic": {
       "type": "object", "additionalProperties": false, "required": ["hitPolicy", "rows"],

@@ -66,23 +66,23 @@ type FieldDefinition struct {
 
 // UnmarshalJSON decodes the v2 sourceService name and synchronizes the
 // deprecated OwnerService Go alias.
-func (f *FieldDefinition) UnmarshalJSON(data []byte) error {
+func (field *FieldDefinition) UnmarshalJSON(data []byte) error {
 	type wire FieldDefinition
 	var decoded wire
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		return err
 	}
-	*f = FieldDefinition(decoded)
-	f.OwnerService = f.SourceService
+	*field = FieldDefinition(decoded)
+	field.OwnerService = field.SourceService
 	return nil
 }
 
 // MarshalJSON emits sourceService even for a legacy Go value initialized via
 // OwnerService.
-func (f FieldDefinition) MarshalJSON() ([]byte, error) {
-	if f.SourceService == "" {
-		f.SourceService = f.OwnerService
+func (field FieldDefinition) MarshalJSON() ([]byte, error) {
+	if field.SourceService == "" {
+		field.SourceService = field.OwnerService
 	}
 	type wire FieldDefinition
-	return json.Marshal(wire(f))
+	return json.Marshal(wire(field))
 }

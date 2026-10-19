@@ -43,15 +43,18 @@ unresolved dependency makes the library impossible to compile or test:
 | `pgregory.net/rapid` | hand-written generators in the property tests | [ADR 7](0007-offline-property-tests.md) |
 
 `go-cmp` is unused for the same reason; test diffs are written by hand.
-`google/uuid` is not yet needed: `DecisionID` is generated in the root facade,
-which a later phase builds.
+`google/uuid` is also unused: the root facade generates decision identifiers
+and the idempotency boundary validates canonical UUIDs with small internal,
+standard-library implementations.
 
 ## Consequences
 
-Consumers inherit nothing, `go.sum` stays effectively empty, and the
-supply-chain surface is the standard library. `govulncheck`, CodeQL and
-dependency review run in CI regardless, so a dependency added later is still
-scanned.
+Consumers inherit nothing, so no `go.sum` exists until the module gains an
+external dependency, and the runtime supply-chain surface is the standard
+library. CI pins its tool and action revisions, runs `govulncheck`, CodeQL and
+dependency review, and verifies that module metadata is tidy. Dependabot
+monitors both Go modules and GitHub Actions so a dependency added later remains
+visible and updateable.
 
 The cost is that three well-tested libraries are replaced by code this team
 maintains, which is only defensible because each substitute is internal

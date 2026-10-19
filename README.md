@@ -29,6 +29,8 @@ repository gate is green in the target CI environment.
   and half-even minor-unit rounding. Binary floating-point money is rejected.
 - Stable reason codes, W3C trace propagation, no-PII operational logs, input
   digests, and an optional durable at-least-once audit-outbox contract.
+- Opt-in money-moving safeguards requiring a client UUID, atomic first-result
+  storage, concurrent-request coalescing, conflict detection, and replay.
 - Embedded closed JSON Schema v2 contracts with an additive-only compatibility
   gate.
 
@@ -42,7 +44,9 @@ go env -w GONOSUMDB=github.com/arrowhr/*
 go get github.com/arrowhr/ruleengine@<approved-version>
 ```
 
-The module requires Go 1.24 or later.
+The module requires Go 1.26 or later. Repository development and CI use the
+exact Go release recorded in `.go-version`; the minimum supported release is
+also exercised in CI.
 
 ## Evaluation model
 
@@ -97,7 +101,9 @@ defer engine.Close()
 
 Gate service readiness on `engine.Ready()`. Use
 `CacheReloadInterval: 0` for batch processes and pin every batch with a
-`manifest.RunManifest`.
+`manifest.RunManifest`. Synchronize that manifest into a process-local
+`manifest.InMemoryStore` before evaluation and pass it with
+`WithManifestStore`; `Evaluate` never fetches a run manifest over the network.
 
 See [the runnable leave-service example](examples/leaveservice) and the
 [integration guide](docs/INTEGRATION.md) for complete construction, decision
@@ -138,9 +144,43 @@ and configure `audit.NewOutboxLogger` over a consumer-owned transactional or
 local durable outbox. The outbox must deliver records at least once and use
 `decisionId` as the downstream idempotency key.
 
-The secured audit record may contain subject identity and result values.
+Durable high-risk records contain the exact resolved facts and subject
+attributes, alongside their SHA-256 digest, so the original decision can be
+replayed. Those inputs may contain PII and must remain in the access-controlled
+audit store. Best-effort records retain only the digest.
+
+The secured audit record may contain subject identity, exact inputs, and result values.
 Operational slog output deliberately excludes subject identity and fact values;
 it carries correlation identifiers and a SHA-256 input digest instead.
+
+## Money-moving idempotency
+
+For payroll disbursement, final settlement, and other money-moving decisions,
+set both `RequireDurableAudit` and `RequireIdempotency`. Supply an
+`IdempotencyStore` shared by every service replica and require each caller to
+send a canonical RFC UUID in `idempotencyKey`:
+
+```go
+engine, err := ruleengine.New(ruleengine.Config{
+    Tenant:               tenantID,
+    Domain:               "payroll",
+    RequireDurableAudit:  true,
+    RequireIdempotency:   true,
+    IdempotencyRetention: 7 * 24 * time.Hour,
+},
+    ruleengine.WithDecisionLogger(outboxLogger),
+    ruleengine.WithIdempotencyStore(sharedIdempotencyStore),
+)
+```
+
+The first successful evaluation owns the key. Concurrent and later identical
+requests receive a copy of that exact result without evaluating or auditing
+again. Reusing the key with different decision inputs returns
+`ErrIdempotencyConflict`. Correlation and trace identifiers may change across
+transport retries and do not alter the operation fingerprint. The minimum
+retention is 24 hours; configure a longer period for payroll. The provided
+`NewMemoryIdempotencyStore` is process-local and therefore only appropriate
+for tests and single-process tools, not replicated production services.
 
 ## Authoring and local tools
 

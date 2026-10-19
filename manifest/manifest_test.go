@@ -1,7 +1,6 @@
 package manifest
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -32,12 +31,12 @@ func TestStoreKeepsPinsImmutableAndClosesRun(t *testing.T) {
 		t.Fatalf("FactPin = %q, %v", pin, found)
 	}
 	manifest.RulePins["urn:arrowhr:rule:payroll:statutory:tax:v1"] = "9.9.9"
-	loaded, found, err := store.Get(context.Background(), "payroll-aug")
-	if err != nil || !found || loaded.RulePins["urn:arrowhr:rule:payroll:statutory:tax:v1"] != "1.2.0" {
+	loaded, found := store.Get("payroll-aug")
+	if !found || loaded.RulePins["urn:arrowhr:rule:payroll:statutory:tax:v1"] != "1.2.0" {
 		t.Fatalf("stored manifest mutated: %#v", loaded)
 	}
 	loaded.FactPins["taxableIncome"] = "99"
-	again, _, _ := store.Get(context.Background(), "payroll-aug")
+	again, _ := store.Get("payroll-aug")
 	if again.FactPins["taxableIncome"] != "3" {
 		t.Fatal("Get returned a mutable internal fact-pin map")
 	}
@@ -101,14 +100,7 @@ func TestStoreFailures(t *testing.T) {
 	if err := nilStore.Put(base); err == nil {
 		t.Fatal("nil Store.Put succeeded")
 	}
-	if _, found, err := nilStore.Get(context.Background(), "r"); found || err == nil || nilStore.Len() != 0 {
+	if _, found := nilStore.Get("r"); found || nilStore.Len() != 0 {
 		t.Fatal("nil store read returned data")
-	}
-	// A cancelled context is reported rather than ignored, which is the whole
-	// reason the interface carries one.
-	cancelled, cancel := context.WithCancel(context.Background())
-	cancel()
-	if _, _, err := NewInMemoryStore().Get(cancelled, "r"); err == nil {
-		t.Fatal("a cancelled read was served")
 	}
 }

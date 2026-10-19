@@ -13,13 +13,13 @@
     },
     "routing": {
       "type": "object", "additionalProperties": false,
-      "required": ["domain", "ruleSet", "name", "ruleKey"],
+      "required": ["domain", "ruleKey"],
       "properties": {
         "domain": {"type": "string", "minLength": 1},
         "ruleSet": {"type": "string", "minLength": 1},
         "name": {"type": "string", "minLength": 1},
         "ruleKey": {"type": "string", "pattern": "^urn:arrowhr:rule:[^:]+:[^:]+:[^:]+:v[1-9][0-9]*$"},
-        "action": {"type": "string"}
+        "action": {"type": "string", "minLength": 1}
       }
     },
     "subject": {
@@ -35,19 +35,22 @@
     },
     "resource": {"type": "object"},
     "context": {"type": "object"},
-    "employmentCountry": {"type": "string"},
-    "jurisdiction": {"type": "string"},
-    "locale": {"type": "string"},
-    "currency": {"type": "string"},
-    "timezone": {"type": "string"},
+    "employmentCountry": {"type": "string", "minLength": 1},
+    "jurisdiction": {"type": "string", "minLength": 1},
+    "locale": {"type": "string", "minLength": 1},
+    "currency": {"type": "string", "minLength": 1},
+    "timezone": {"type": "string", "minLength": 1},
     "asOf": {"type": "string", "format": "date-time"},
     "validAt": {"type": "string", "format": "date-time"},
-    "runId": {"type": "string"},
-    "ruleVersionPin": {"type": "string"},
-    "factSourcePins": {"type": "object"},
-    "idempotencyKey": {"type": "string"},
-    "correlationId": {"type": "string"},
-    "traceparent": {"type": "string"}
+    "runId": {"type": "string", "minLength": 1},
+    "ruleVersionPin": {"type": "string", "minLength": 1},
+    "factSourcePins": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "minLength": 1}
+    },
+    "idempotencyKey": {"type": "string", "minLength": 1},
+    "correlationId": {"type": "string", "minLength": 1},
+    "traceparent": {"type": "string", "minLength": 1}
   },
   "$defs": {
     "identifier": {

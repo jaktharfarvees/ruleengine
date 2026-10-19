@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Verification hardening
 
+- Raised the supported Go floor to 1.26, pinned repository development and CI
+  to Go 1.27.2, removed the spurious empty `go.sum`, made module checks
+  non-mutating, and pinned CI actions and developer-tool installs.
+- Removed the retired employee-exception anchor model. Rules now anchor only
+  to hierarchy nodes, matching the v2 deepest-anchor-wins contract.
+- Strengthened resolver regression coverage for arbitrary N-level hierarchies,
+  inserted levels, off-path explanations, shallow-filter non-promotion,
+  deterministic runtime conflicts, and equal-priority publication rejection.
+- Aligned all six published v2 schemas with the request, explainability,
+  rule-anchor, fact-source, catalog, and dataset-manifest contracts; expanded
+  the embedded validator for conditional, uniqueness, and typed-map checks.
 - Migrated v2 JSON contracts to `anchor`, `attributeFilters`, `datasetId`,
   `sourceService`, `allowedAggregates`, `dataType`, `allowedValues`, `filter`,
   `column`, and `builderFn`; added the missing tenant-scoped `RuleCatalog`.
@@ -20,12 +31,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Publication lint now rejects equal-rank ambiguity; runtime applies a stable
   deterministic fallback and emits `PRECEDENCE_CONFLICT`.
 - Added a durable audit-outbox contract, required-audit configuration, input
-  digests, and PII-safe operational logging.
+  digests, exact replay inputs for money/compliance workflows, and PII-safe
+  operational logging.
+- Added opt-in money-moving idempotency with required RFC UUID keys, atomic
+  first-result storage, concurrent retry coalescing, input-conflict detection,
+  a 24-hour minimum retention policy, and whole-result replay for `Evaluate`
+  and `EvaluateAll`.
+- Restricted run-manifest evaluation access to a process-local, non-failing
+  reader and reused one immutable manifest view across every point and fact in
+  an evaluation session, removing control-plane I/O from the payroll hot path.
+- Hardened the Rule Service loader with HTTPS-by-default endpoint validation,
+  redirect and unsafe-header refusal, per-attempt timeouts, explicit response
+  size and JSON media-type enforcement, modern default TLS, and retries only
+  for transient failures.
+- Completed observability emission and propagation: evaluation duration and
+  hierarchy freshness metrics now emit, inbound W3C trace context reaches the
+  root span, all stage and fact-kind spans form one tree, and failed spans use
+  bounded PII-safe reason classifications.
 - Monetary quantization now uses exact half-even rounding and rejects unknown
   currency codes on the decision path.
 - Expanded `engine/testengine` to first, priority, collect, references, and
   arithmetic so every golden fixture runs on both implementations.
-- Added the locked v2 additive-only schema compatibility CI gate.
+- Added a recursive, snapshot-based v2 additive-only schema compatibility
+  gate that rejects nested property removal, required/type/constraint changes,
+  altered enums and conditionals, or removal of a published schema.
 
 ### Added
 
@@ -144,10 +173,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   usable with a bare list of keys. A routing block that contradicts its own key
   is refused, because one of the two is a mistake and there is no way to tell
   which.
-- `manifest.Store` is the read-only interface, taking a context and returning
-  an error as the specification has it, and `manifest.InMemoryStore` is the
-  in-memory implementation. A remote reader can honour a decision's deadline,
-  and a missing manifest is distinguishable from an unreachable store.
+- `manifest.Reader` is now an explicitly process-local, non-blocking contract,
+  and `manifest.InMemoryStore` is the supported engine integration. Services
+  synchronize manifests before evaluation; a missing local manifest fails the
+  decision closed without introducing control-plane availability into payroll.
 - Version selection happens before anchor resolution, because a version
   carries its own anchor: publishing a company override is a new version of the
   same rule key (plan Appendix A.2). A run manifest's pin therefore constrains

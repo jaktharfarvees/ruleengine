@@ -3,6 +3,7 @@ package ruleengine_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -49,6 +50,13 @@ func TestConfigValidation(t *testing.T) {
 		{"unknown validation mode", func(c *ruleengine.Config) { c.Validation = 99 }, false},
 		{"negative reload interval", func(c *ruleengine.Config) { c.CacheReloadInterval = -time.Second }, false},
 		{"negative candidate cap", func(c *ruleengine.Config) { c.MaxCandidatesPerKey = -1 }, false},
+		{"negative idempotency retention", func(c *ruleengine.Config) { c.IdempotencyRetention = -time.Second }, false},
+		{"short idempotency retention", func(c *ruleengine.Config) { c.IdempotencyRetention = time.Hour }, false},
+		{"idempotency without durable audit", func(c *ruleengine.Config) { c.RequireIdempotency = true }, false},
+		{"money-moving safeguards", func(c *ruleengine.Config) {
+			c.RequireIdempotency = true
+			c.RequireDurableAudit = true
+		}, true},
 		{"empty fail-closed domain", func(c *ruleengine.Config) { c.FailClosedDomains = []string{""} }, false},
 		{"schema-only validation", func(c *ruleengine.Config) { c.Validation = ruleengine.ValidationSchemaOnly }, true},
 		{"validation off", func(c *ruleengine.Config) { c.Validation = ruleengine.ValidationOff }, true},
@@ -342,11 +350,70 @@ func TestCloseDrainsTheAuditLogger(t *testing.T) {
 	if len(record.InputsHash) != 64 {
 		t.Fatalf("record input digest = %q, want SHA-256", record.InputsHash)
 	}
+	if record.Inputs != nil {
+		t.Fatalf("best-effort audit retained exact inputs: %#v", record.Inputs)
+	}
 }
 
 type failingOutbox struct{ err error }
 
 func (o failingOutbox) Append(context.Context, audit.Record) error { return o.err }
+
+type capturingOutbox struct {
+	record audit.Record
+}
+
+func (o *capturingOutbox) Append(_ context.Context, record audit.Record) error {
+	o.record = record
+	return nil
+}
+
+func TestDurableAuditCapturesExactEffectiveInputs(t *testing.T) {
+	config := baseConfig()
+	config.RequireDurableAudit = true
+	outbox := &capturingOutbox{}
+	logger, err := audit.NewOutboxLogger(outbox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	instance := engineOverBundle(t, config, func(bundle *store.Bundle) {
+		for index := range bundle.Fields {
+			if bundle.Fields[index].Name == "joinDate" {
+				bundle.Fields[index].PII = true
+			}
+		}
+	}, ruleengine.WithDecisionLogger(logger))
+	request := leaveRequest("urn:arrowhr:rule:leave:eligibility:min-service:v1",
+		map[string]any{"joinDate": "2026-05-01"})
+	request.Subject.Attributes = map[string]any{"designation": "Senior"}
+
+	decision, err := instance.Evaluate(context.Background(), request)
+	if err != nil || decision.Failed {
+		t.Fatalf("decision = %#v, error = %v", decision, err)
+	}
+	record := outbox.record
+	if record.Inputs == nil {
+		t.Fatal("durable audit omitted exact inputs")
+	}
+	if got := record.Inputs.Facts["joinDate"]; got != "2026-05-01" {
+		t.Fatalf("exact PII fact = %#v, want original value", got)
+	}
+	if _, found := record.Inputs.Facts["serviceMonths"]; !found {
+		t.Fatalf("derived effective fact is absent: %#v", record.Inputs.Facts)
+	}
+	if got := record.Inputs.Attributes["designation"]; got != "Senior" {
+		t.Fatalf("exact subject attribute = %#v", got)
+	}
+	if len(record.InputsHash) != 64 {
+		t.Fatalf("durable record input digest = %q, want SHA-256", record.InputsHash)
+	}
+
+	// Audit evidence is independent of caller-owned maps after Evaluate returns.
+	request.Subject.Attributes["designation"] = "Changed"
+	if got := record.Inputs.Attributes["designation"]; got != "Senior" {
+		t.Fatalf("caller mutation changed audit evidence to %#v", got)
+	}
+}
 
 func TestDurableAuditIsEnforced(t *testing.T) {
 	config := baseConfig()
@@ -354,7 +421,8 @@ func TestDurableAuditIsEnforced(t *testing.T) {
 	if _, err := ruleengine.New(config); !errors.Is(err, ruleengine.ErrConfig) {
 		t.Fatalf("New without durable audit = %v, want ErrConfig", err)
 	}
-	logger, err := audit.NewOutboxLogger(failingOutbox{err: errors.New("outbox unavailable")})
+	cause := errors.New("outbox failed for person@example.com")
+	logger, err := audit.NewOutboxLogger(failingOutbox{err: cause})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,6 +431,9 @@ func TestDurableAuditIsEnforced(t *testing.T) {
 		"urn:arrowhr:rule:leave:eligibility:min-service:v1", map[string]any{"joinDate": "2026-05-01"}))
 	if err == nil || decision.DecisionID == "" {
 		t.Fatalf("durable audit failure = decision %#v, error %v", decision, err)
+	}
+	if !errors.Is(err, cause) || strings.Contains(err.Error(), "person@example.com") {
+		t.Fatalf("durable audit error did not preserve the cause safely: %v", err)
 	}
 }
 
@@ -415,6 +486,37 @@ func TestManifestPinnedRunUsesTheFrozenVersion(t *testing.T) {
 	}
 	if !decision.Failed || !hasReason(decision, ruleengine.ReasonPinnedVersionUnavailable) {
 		t.Fatalf("an unpinned rule in a run = %v, want a pin failure", decision.ReasonCodes)
+	}
+}
+
+func TestMissingExplicitPinReloadsAndUsesFreshSnapshot(t *testing.T) {
+	full := sharedBundle(t)
+	initial := full
+	initial.Rules = nil
+	for _, definition := range full.Rules {
+		if definition.Version != "1.0.0" {
+			initial.Rules = append(initial.Rules, definition)
+		}
+	}
+	loader := &countingLoader{bundle: full}
+	instance, err := ruleengine.New(baseConfig(), ruleengine.WithLoader(loader))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = instance.Close() })
+	if err := instance.ApplyBundle(initial); err != nil {
+		t.Fatal(err)
+	}
+
+	request := leaveRequest("urn:arrowhr:rule:leave:eligibility:min-service:v1",
+		map[string]any{"joinDate": "2026-05-01"})
+	request.RuleVersionPin = "1.0.0"
+	decision, err := instance.Evaluate(context.Background(), request)
+	if err != nil || decision.Failed {
+		t.Fatalf("decision after pin reload = %v, %v", decision.ReasonCodes, err)
+	}
+	if decision.RuleVersion != "1.0.0" || loader.count() != 1 {
+		t.Fatalf("pin reload selected version %q after %d loads", decision.RuleVersion, loader.count())
 	}
 }
 

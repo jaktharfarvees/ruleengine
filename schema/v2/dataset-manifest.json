@@ -64,6 +64,8 @@
     },
     "allowedAggregates": {
       "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
       "items": {
         "type": "string",
         "enum": [
@@ -128,8 +130,11 @@
         },
         "allowedValues": {
           "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
           "items": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         "pii": {

@@ -63,6 +63,30 @@ func TestNopTracerDoesNotAllocate(t *testing.T) {
 	}
 }
 
+func TestPropagationRoundTripsThroughContext(t *testing.T) {
+	want := Propagation{
+		Traceparent:   "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+		CorrelationID: "corr-telemetry-1",
+	}
+	ctx := ContextWithPropagation(context.Background(), want)
+	got, found := PropagationFromContext(ctx)
+	if !found || got != want {
+		t.Fatalf("PropagationFromContext = %+v, %v; want %+v, true", got, found, want)
+	}
+	if _, found := PropagationFromContext(nil); found {
+		t.Fatal("nil context unexpectedly carried propagation")
+	}
+}
+
+func TestRecordFailureUsesOnlyTheStableClassification(t *testing.T) {
+	span := &capturingSpan{attributes: make(map[string]any)}
+	RecordFailure(span, "FACT_TIMEOUT")
+	if span.attributes[AttrReasonCode] != "FACT_TIMEOUT" || span.err == nil || span.err.Error() != "FACT_TIMEOUT" {
+		t.Fatalf("captured failure = attributes %#v, error %v", span.attributes, span.err)
+	}
+	RecordFailure(nil, "IGNORED")
+}
+
 func TestNamesAreDistinctAndWellFormed(t *testing.T) {
 	names := []string{
 		MetricEvalDuration, MetricEvalTotal, MetricEvalErrors, MetricCandidatesConsidered,
@@ -85,3 +109,14 @@ func TestNamesAreDistinctAndWellFormed(t *testing.T) {
 		t.Fatalf("SpanFactKind(\"dataset\") = %q, want fact.dataset", got)
 	}
 }
+
+type capturingSpan struct {
+	attributes map[string]any
+	err        error
+}
+
+func (*capturingSpan) End() {}
+
+func (s *capturingSpan) SetAttr(key string, value any) { s.attributes[key] = value }
+
+func (s *capturingSpan) RecordError(err error) { s.err = err }

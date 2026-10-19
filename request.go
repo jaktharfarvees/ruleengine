@@ -37,8 +37,8 @@ type Tenant struct {
 // Routing identifies the requested rule family or exact key.
 type Routing struct {
 	Domain  string       `json:"domain"`
-	RuleSet string       `json:"ruleSet"`
-	Name    string       `json:"name"`
+	RuleSet string       `json:"ruleSet,omitempty"`
+	Name    string       `json:"name,omitempty"`
 	RuleKey rule.RuleKey `json:"ruleKey,omitempty"`
 	Action  string       `json:"action,omitempty"`
 }
