@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/arrowhr/ruleengine/dataset"
+	"github.com/arrowhr/ruleengine/dataset/datasettest"
 	"github.com/arrowhr/ruleengine/fact"
 	"github.com/arrowhr/ruleengine/registry"
 	"github.com/arrowhr/ruleengine/rule"
@@ -744,13 +746,13 @@ func TestInMemoryExecutorPassesConformance(t *testing.T) {
 	for _, name := range []string{"attendance.days", "leave.applications", "leave.balances", "payroll.overtime"} {
 		manifest := mustManifest(t, name)
 		t.Run(name, func(t *testing.T) {
-			dataset.ConformanceSuite(t, func() dataset.Executor {
+			datasettest.ConformanceSuite(t, func() dataset.Executor {
 				executor, err := ruletest.NewInMemoryExecutor(manifest)
 				if err != nil {
 					t.Fatal(err)
 				}
 				return executor
-			}, manifest)
+			}, manifest, datasettest.WithTenantSeeder(seedConformanceRows(manifest)))
 		})
 	}
 }
@@ -761,9 +763,9 @@ func TestInMemoryExecutorPassesConformance(t *testing.T) {
 func TestConformanceSuiteCatchesAnUnsafeExecutor(t *testing.T) {
 	manifest := mustManifest(t, "attendance.days")
 	recorder := &recordingTB{TB: t}
-	dataset.ConformanceSuite(recorder, func() dataset.Executor {
+	datasettest.ConformanceSuite(recorder, func() dataset.Executor {
 		return &unsafeExecutor{manifest: manifest}
-	}, manifest)
+	}, manifest, datasettest.WithoutTenantIsolation())
 	if !recorder.failed {
 		t.Fatal("the conformance suite passed an executor that ignores the tenant predicate")
 	}
@@ -1055,4 +1057,50 @@ func fmtArgs(args []any) string {
 		}
 	}
 	return strings.Join(parts, " ")
+}
+
+// seedConformanceRows builds a Seeder for one manifest: one row per tenant,
+// carrying a plausible value for every column, dated inside the window the
+// conformance suite compiles. It exists so the suite's tenant-isolation and
+// aggregate-type checks run against the reference executor rather than being
+// skipped.
+func seedConformanceRows(manifest dataset.Manifest) datasettest.Seeder {
+	canonical := manifest.Canonical()
+	return func(executor dataset.Executor, tenant string) error {
+		memory, ok := executor.(*ruletest.InMemoryExecutor)
+		if !ok {
+			return fmt.Errorf("seeder was handed a %T", executor)
+		}
+		row := ruletest.Row{dataset.TenantColumn: tenant}
+		for _, column := range canonical.Columns {
+			row[column.Name] = conformanceCell(column)
+		}
+		return memory.Add(canonical.DatasetID, row)
+	}
+}
+
+// conformanceCell returns a value of the column's declared type. Dates sit
+// inside the suite's one-day window, which ends at its validAt of 2026-06-01.
+func conformanceCell(column dataset.Column) any {
+	switch column.DataType {
+	case registry.DataString:
+		return "E0001"
+	case registry.DataEnum:
+		if len(column.AllowedValues) > 0 {
+			return column.AllowedValues[0]
+		}
+		return "E0001"
+	case registry.DataInteger:
+		return 1
+	case registry.DataDecimal, registry.DataNumber, registry.DataMoney:
+		return "1.5"
+	case registry.DataBoolean:
+		return true
+	case registry.DataDate:
+		return "2026-05-31"
+	case registry.DataDateTime:
+		return "2026-05-31T00:00:00Z"
+	default:
+		return "1"
+	}
 }

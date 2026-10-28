@@ -233,3 +233,39 @@ func mustCompile(t *testing.T, source registry.FactSource) Query {
 	}
 	return query
 }
+
+// TestUntenantedCopy covers the helper the conformance suite in
+// dataset/datasettest depends on. It must strip the injected predicate, leave
+// the author's own filters alone, and not touch the original: the suite reuses
+// the compiled query for its other checks.
+func TestUntenantedCopy(t *testing.T) {
+	query := Query{
+		dataset: "probe.rows",
+		predicates: []Predicate{
+			{Column: TenantColumn, Op: rule.FilterEquals, Values: []any{"T1"}, Injected: true},
+			{Column: "employeeId", Op: rule.FilterEquals, Values: []any{"E1"}},
+		},
+		rowLimit: 10,
+	}
+
+	stripped := UntenantedCopy(query)
+	if _, present := stripped.TenantPredicate(); present {
+		t.Fatal("the injected tenant predicate survived")
+	}
+	remaining := stripped.Predicates()
+	if len(remaining) != 1 || remaining[0].Column != "employeeId" {
+		t.Fatalf("predicates = %+v, want only the author's own filter", remaining)
+	}
+	if _, present := query.TenantPredicate(); !present {
+		t.Fatal("UntenantedCopy mutated its argument")
+	}
+
+	// A query that carries nothing but the tenant predicate becomes empty
+	// rather than nil-panicking on the next read.
+	only := Query{predicates: []Predicate{
+		{Column: TenantColumn, Values: []any{"T1"}, Injected: true},
+	}}
+	if got := UntenantedCopy(only).Predicates(); len(got) != 0 {
+		t.Fatalf("predicates = %+v, want none", got)
+	}
+}

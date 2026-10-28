@@ -325,23 +325,85 @@ Notes on that sketch:
   There is no portable SQL for it, which is why a dataset may legitimately
   withhold the aggregate — `payroll.overtime` does, and FT05 proves the refusal.
 
+### What Result.Value must contain
+
+`Value` is **nil when no row matched**, whatever the aggregate. That is how you
+say "nothing"; a zero instead is wrong, because the caller cannot tell an
+absent balance from a balance of zero — the field's `onEmpty` is the author's
+answer to that question.
+
+When a row did match:
+
+| Aggregate | Value must be |
+|---|---|
+| `count`, `streak` | a Go integer — a count of rows is a whole number of rows |
+| `exists` | `bool` |
+| `latest` | the cell itself, satisfying its own column's declared `dataType` |
+| `sum`, `avg`, `min`, `max` | an exactly representable number: a string, a `json.Number`, a Go integer, or the library's decimal |
+
+**Never binary floating point, for any aggregate.** A `float64` cannot
+represent most decimal money values exactly, the engine refuses to compare one,
+and strict boundary validation rejects it for a field typed `decimal`, `number`
+or `money`. Return `"1234.56"`, not `1234.56`.
+
+The library's decimal type is internal, so your executor cannot name it. That
+costs nothing: a decimal string is accepted everywhere the decimal itself is,
+and it is the normal shape to read out of a driver.
+
+### Logical names are yours to map
+
+A `Query` names a dataset identifier and the column names the manifest
+declares. Which table, collection or physical column those mean is **your**
+business — the library neither records nor needs the mapping, which is why the
+sketch above keeps its own `e.tables` and `e.columns` maps.
+
+The one name the library fixes is the tenant column, `dataset.TenantColumn`,
+which is `"tenantId"`. A manifest must not declare it, and a store that spells
+it `tenant_id` or `org_id` maps it like any other column.
+
 ### Prove it
 
 ```go
 func TestExecutorConformance(t *testing.T) {
     for _, manifest := range publishedManifests {
-        dataset.ConformanceSuite(t, func() dataset.Executor {
-            return newSQLExecutor(t)
-        }, manifest)
+        datasettest.ConformanceSuite(t,
+            func() dataset.Executor { return newSQLExecutor(t) },
+            manifest,
+            // Insert at least one row for the given tenant. Without this the
+            // tenant-isolation check fails, because a suite with no data
+            // cannot tell an isolating executor from one that ignores the
+            // predicate.
+            datasettest.WithTenantSeeder(func(e dataset.Executor, tenant string) error {
+                return seedFixtureRows(e.(*sqlExecutor), tenant)
+            }),
+        )
     }
 }
 ```
 
-The suite checks the properties the library cannot enforce from outside: that
-you declare the manifest, **refuse a query with no tenant predicate**, stay
-inside the row limit, honour cancellation, and answer the same query the same
-way twice. It builds an untenanted query — which only the `dataset` package
-can do — and requires you to reject it. An executor that answers anyway fails.
+The suite lives in `dataset/datasettest` so that the shipped `dataset` package
+carries no dependency on `testing`. It checks the properties the library cannot
+enforce from outside: that you declare the manifest, **refuse a query with no
+tenant predicate**, **actually isolate one tenant's rows from another's**, stay
+inside the row limit, honour cancellation, answer the same query the same way
+twice, and **return the documented type for every aggregate your manifest
+offers**.
+
+Two of those are worth spelling out:
+
+- It builds an untenanted query, via `dataset.UntenantedCopy`, and requires you
+  to reject it. Refusing proves you *look* for the predicate; the isolation
+  check proves you *apply* it, by running the same query against a store
+  holding one tenant's rows and then two.
+- If rows scanned grows once a second tenant has data, the suite **warns**
+  rather than fails: the answer is right, but another tenant's volume is being
+  charged to this tenant's `MaxRowsScanned`, so one large tenant can exhaust
+  the budget for the rest. Check that your tenant column is indexed and the
+  predicate is pushed into the query.
+
+If your executor genuinely cannot be seeded from a test, pass
+`datasettest.WithoutTenantIsolation()`. The suite logs a warning and you must
+prove the tenant boundary another way.
 
 For development, `ruletest.NewInMemoryExecutor` serves synthetic rows and
 passes the suite itself, so a team can test its rules before writing a real

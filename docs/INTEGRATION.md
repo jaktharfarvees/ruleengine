@@ -80,7 +80,7 @@ The library has already checked everything checkable. Your job is to translate
 a structured value into your dialect and run it. The one thing you owe:
 **assert the tenant predicate is present and apply it.**
 
-Prove it with `dataset.ConformanceSuite`. Until then, use
+Prove it with `datasettest.ConformanceSuite`. Until then, use
 `ruletest.NewInMemoryExecutor` so the rest of the work is not blocked.
 
 [FACTS.md](FACTS.md#writing-a-datasetexecutor) has a worked SQL executor.

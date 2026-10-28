@@ -45,7 +45,7 @@ Three lines change when this becomes a deployed service:
 | Example | Production |
 |---|---|
 | `filestore.New("testdata")` | `servicestore.New(...)` reading from the Rule Service |
-| `ruletest.NewInMemoryExecutor(...)` | the service's own `dataset.Executor`, proved with `dataset.ConformanceSuite` |
+| `ruletest.NewInMemoryExecutor(...)` | the service's own `dataset.Executor`, proved with `datasettest.ConformanceSuite` |
 | `audit.NewSlogSink(logger)` | an `audit.Sink` writing to the audit store |
 
 Nothing else moves. With a `CacheReloadInterval` set, also call

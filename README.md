@@ -157,7 +157,7 @@ if err != nil {
 
 // Where dataset-sourced facts come from. A real service implements
 // dataset.Executor over its own storage and proves it with
-// dataset.ConformanceSuite.
+// datasettest.ConformanceSuite.
 manifests, err := ruletest.LoadManifests("leave.balances", "leave.applications")
 if err != nil {
     log.Fatal(err)
@@ -471,15 +471,58 @@ func (e *LeaveExecutor) Run(ctx context.Context, query dataset.Query) (dataset.R
 }
 ```
 
-Then prove it against the contract, in your own test suite:
+### What to return
+
+`Result.Value` is **nil when no row matched**, whatever the aggregate — a zero
+instead is wrong, because the caller cannot tell an absent balance from a
+balance of zero. When a row did match:
+
+| Aggregate | Value must be |
+|---|---|
+| `count`, `streak` | a Go integer |
+| `exists` | `bool` |
+| `latest` | the cell itself, satisfying its own column's declared `dataType` |
+| `sum`, `avg`, `min`, `max` | an exactly representable number: a string, a `json.Number`, a Go integer, or the library's decimal |
+
+**Never binary floating point, for any aggregate.** A `float64` cannot
+represent most decimal money values exactly, the engine refuses to compare one,
+and strict validation rejects it for a `decimal`, `number` or `money` field.
+Return `"1234.56"`, not `1234.56`. The library's decimal type is internal, so
+your executor cannot name it — which costs nothing, since a decimal string is
+accepted everywhere the decimal itself is.
+
+`RowsScanned` is charged to the request's `MaxRowsScanned` budget, so report it
+honestly: an executor that reads every tenant's rows and filters in memory
+spends one tenant's budget on another's data.
+
+### Prove it
 
 ```go
 func TestExecutorConformance(t *testing.T) {
-    dataset.ConformanceSuite(t, func() dataset.Executor {
-        return NewLeaveExecutor(testDB(t))
-    }, manifestUnderTest)
+    datasettest.ConformanceSuite(t,
+        func() dataset.Executor { return NewLeaveExecutor(testDB(t)) },
+        manifestUnderTest,
+        // Insert at least one row for the given tenant. Without this the
+        // tenant-isolation check fails, because a suite with no data cannot
+        // tell an isolating executor from one that ignores the predicate.
+        datasettest.WithTenantSeeder(seedRowsFor),
+    )
 }
 ```
+
+The suite lives in `dataset/datasettest`, so the shipped `dataset` package
+carries no dependency on `testing`. It checks seven properties the library
+cannot enforce from outside: that you declare the manifest, refuse a query with
+no tenant predicate, actually isolate one tenant's rows from another's, stay
+inside the row limit, honour cancellation, answer deterministically, and return
+the documented type for every aggregate your manifest offers.
+
+Refusing an untenanted query proves you *look* for the predicate; the isolation
+check proves you *apply* it. If rows scanned grows once a second tenant has
+data the suite warns rather than fails — the answer is right, but another
+tenant's volume is being charged to this tenant's budget, so check that your
+tenant column is indexed. `datasettest.WithoutTenantIsolation()` opts out
+loudly, for an executor that genuinely cannot be seeded from a test.
 
 Until the real executor exists, use `ruletest.NewInMemoryExecutor` so the rest
 of the work is not blocked. `query.Explain()` renders a query in prose, which is
@@ -927,7 +970,7 @@ sensible it would be.
 ### Step 4 — Implement the executor
 
 See [Writing a DatasetExecutor](#writing-a-datasetexecutor). Prove it with
-`dataset.ConformanceSuite`; use `ruletest.NewInMemoryExecutor` until then.
+`datasettest.ConformanceSuite`; use `ruletest.NewInMemoryExecutor` until then.
 
 ### Step 5 — Wire the engine, once, at start-up
 
@@ -1236,8 +1279,12 @@ What **every** service owns for itself, shared with nobody except the library:
 - its own `FieldRegistry` entries for its own domain,
 - its own dataset manifests,
 - its own `Executor` and `ContextBuilder`,
-- its own decision-point list and action contracts,
+- its own decision-point list,
 - its own fact budget.
+
+Action contracts (a per-service list of the facts each action supplies) are not part
+of 1.0. Until they exist, a value taken from the current request is supplied by a
+native fact in the service's `ContextBuilder`; see `docs/OPEN_QUESTIONS.md`.
 
 Nothing is shared between services except this library. A cross-service effect
 travels as an event the owning service publishes, never as a direct call into
@@ -1337,7 +1384,8 @@ Report a suspected vulnerability per `SECURITY.md`. Do not open a public issue.
 | `hierarchy` | org trees, immutable snapshots, root-to-leaf paths, inherited attributes, derived precedence |
 | `resolve` | deepest-anchor-wins over a path. **Pure** — no I/O, no clock, no logging |
 | `registry` | the `FieldRegistry`, loud-fail validation, and the four fact-source declarations |
-| `dataset` | manifests, the twelve guardrails, the compiled `Query`, the `Executor` interface, `ConformanceSuite` |
+| `dataset` | manifests, the twelve guardrails, the compiled `Query`, the `Executor` interface |
+| `dataset/datasettest` | the executor conformance suite, kept out of `dataset` so no consumer links `testing` |
 | `fact` | fact orchestration across all four kinds, the budget, de-duplication, the native registry |
 | `contextbuilder` | the `ContextBuilder` interface for `native` fields |
 | `engine` | the `Engine` interface and the conformance harness |

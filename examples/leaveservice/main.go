@@ -164,7 +164,7 @@ func newEngine(logger *slog.Logger) (*ruleengine.Engine, func(), error) {
 // newExecutor stands in for this service's own storage.
 //
 // A real leave service implements dataset.Executor over its database and
-// proves it with dataset.ConformanceSuite. The in-memory one keeps this
+// proves it with datasettest.ConformanceSuite. The in-memory one keeps this
 // example runnable.
 func newExecutor() (dataset.Executor, error) {
 	manifests, err := ruletest.LoadManifests("leave.balances", "leave.applications")

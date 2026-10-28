@@ -86,6 +86,28 @@ func (q Query) TenantPredicate() (Predicate, bool) {
 	return Predicate{}, false
 }
 
+// UntenantedCopy returns a copy of query with its injected tenant predicate
+// removed.
+//
+// It exists for exactly one purpose: a conformance suite outside this package
+// must be able to present an Executor with the one query Compile will never
+// produce, to check that the Executor refuses it rather than assuming the
+// predicate is there. See dataset/datasettest.
+//
+// Nothing else should call it. A query carrying no tenant predicate is
+// precisely what the injected predicate exists to prevent, and handing one to
+// a real Executor asks it for every tenant's rows.
+func UntenantedCopy(query Query) Query {
+	kept := make([]Predicate, 0, len(query.predicates))
+	for _, predicate := range query.predicates {
+		if !predicate.Injected {
+			kept = append(kept, predicate)
+		}
+	}
+	query.predicates = kept
+	return query
+}
+
 // Window returns the resolved time window, if the fact declared one.
 func (q Query) Window() (WindowSpec, bool) {
 	if q.window == nil {

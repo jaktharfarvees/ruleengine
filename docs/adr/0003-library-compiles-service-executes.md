@@ -40,7 +40,7 @@ that `Compile` produced.
   type-checked, only the four substitution tokens honoured, the tenant predicate
   injected and marked `Injected`, a row limit always set, and the window
   resolved to absolute times so an executor never interprets a token.
-- `dataset.ConformanceSuite` is published so a service team can prove its
+- `datasettest.ConformanceSuite` is published so a service team can prove its
   executor honours the tenant predicate rather than ignoring it.
 
 ## Consequences

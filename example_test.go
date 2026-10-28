@@ -28,7 +28,7 @@ func Example() {
 
 	// Where dataset-sourced facts come from. A real service implements
 	// dataset.Executor over its own storage and proves it with
-	// dataset.ConformanceSuite.
+	// datasettest.ConformanceSuite.
 	manifests, err := ruletest.LoadManifests("leave.balances", "leave.applications")
 	if err != nil {
 		log.Fatal(err)
