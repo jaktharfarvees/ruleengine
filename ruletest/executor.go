@@ -43,9 +43,9 @@ func NewInMemoryExecutor(manifests ...dataset.Manifest) (*InMemoryExecutor, erro
 	}
 	for _, manifest := range manifests {
 		if err := manifest.Validate(); err != nil {
-			return nil, fmt.Errorf("manifest %q: %w", manifest.Dataset, err)
+			return nil, fmt.Errorf("manifest %q: %w", manifest.DatasetID, err)
 		}
-		executor.manifests[manifest.Dataset] = manifest
+		executor.manifests[manifest.DatasetID] = manifest
 	}
 	return executor, nil
 }

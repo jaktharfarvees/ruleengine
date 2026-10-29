@@ -125,7 +125,11 @@ func (e *entry) release() {
 	}
 	e.mu.Unlock()
 	if closeNow {
-		e.pool.closeEngine(e)
+		// The pool already counted this close when it removed the entry, so
+		// Pool.Close waits for it. It runs off the caller's goroutine because
+		// the caller is a request that has just got its answer, and must not
+		// also wait for an engine to drain.
+		go e.pool.closeEngine(e)
 	}
 }
 

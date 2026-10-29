@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Hardening fixes
+
+- `audit.Async.Log` after `Close` is now a counted drop rather than a panic.
+  `Close` bounds each sink write by the remaining drain deadline and returns an
+  error if any record was lost while draining.
+- `pool` closes a retired engine on a tracked background goroutine when the
+  last in-flight call releases it, so that call no longer waits for `Close`.
+- An engine now refuses at load any rule whose `engineRef.engine` is not the
+  configured engine's `Name()`.
+- Removed `dataset.UntenantedCopy` from the public API; the conformance suite
+  reaches it through `dataset/internal`.
+- **Breaking:** removed the deprecated `dataset.Manifest` fields `Dataset`,
+  `OwnerService` and `Aggregates`. Use `DatasetID`, `SourceService` and
+  `AllowedAggregates`.
+
 ### Verification hardening
 
 - Raised the supported Go floor to 1.26, pinned repository development and CI

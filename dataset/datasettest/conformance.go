@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/arrowhr/ruleengine/dataset"
+	"github.com/arrowhr/ruleengine/dataset/internal/untenanted"
 	"github.com/arrowhr/ruleengine/internal/decimalx"
 	"github.com/arrowhr/ruleengine/registry"
 )
@@ -156,26 +157,32 @@ func checkManifestDeclared(
 	t.Errorf("executor does not declare the manifest for %q; the library cannot route a fact to it", wanted)
 }
 
+// untenantedCopy strips the injected tenant predicate from a compiled query.
+func untenantedCopy(query dataset.Query) dataset.Query {
+	stripped, _ := untenanted.Strip(query).(dataset.Query)
+	return stripped
+}
+
 // checkRefusesUntenantedQuery is the reason this suite exists.
 //
 // Compile always injects a tenant predicate, so a correct query cannot test
-// this. dataset.UntenantedCopy builds the one query Compile will never
+// this. untenantedCopy builds the one query Compile will never
 // produce, and the Executor must refuse it. An Executor that answers anyway
 // would, the day a library bug or a hand-built query reached it, return
 // another tenant's data.
 func checkRefusesUntenantedQuery(
 	t testing.TB, newExecutor func() dataset.Executor, manifest dataset.Manifest, _ *options,
 ) {
-	query, ok := conformanceQuery(t, manifest, tenantA)
+	query, ok := conformanceQuery(t, manifest)
 	if !ok {
 		return
 	}
-	untenanted := dataset.UntenantedCopy(query)
-	if _, present := untenanted.TenantPredicate(); present {
+	stripped := untenantedCopy(query)
+	if _, present := stripped.TenantPredicate(); present {
 		t.Error("the suite failed to strip the tenant predicate")
 		return
 	}
-	if _, err := newExecutor().Run(context.Background(), untenanted); err == nil {
+	if _, err := newExecutor().Run(context.Background(), stripped); err == nil {
 		t.Error("executor ran a query carrying no tenant predicate; " +
 			"it must assert the predicate is present and refuse")
 	}
@@ -213,7 +220,7 @@ func checkTenantIsolation(
 			"datasettest.WithoutTenantIsolation to opt out deliberately")
 		return
 	}
-	query, ok := conformanceQuery(t, manifest, tenantA)
+	query, ok := conformanceQuery(t, manifest)
 	if !ok {
 		return
 	}
@@ -261,7 +268,7 @@ func checkTenantIsolation(
 func checkRowLimitRespected(
 	t testing.TB, newExecutor func() dataset.Executor, manifest dataset.Manifest, opts *options,
 ) {
-	query, ok := conformanceQuery(t, manifest, tenantA)
+	query, ok := conformanceQuery(t, manifest)
 	if !ok {
 		return
 	}
@@ -284,7 +291,7 @@ func checkRowLimitRespected(
 func checkCancellation(
 	t testing.TB, newExecutor func() dataset.Executor, manifest dataset.Manifest, _ *options,
 ) {
-	query, ok := conformanceQuery(t, manifest, tenantA)
+	query, ok := conformanceQuery(t, manifest)
 	if !ok {
 		return
 	}
@@ -298,7 +305,7 @@ func checkCancellation(
 func checkDeterminism(
 	t testing.TB, newExecutor func() dataset.Executor, manifest dataset.Manifest, opts *options,
 ) {
-	query, ok := conformanceQuery(t, manifest, tenantA)
+	query, ok := conformanceQuery(t, manifest)
 	if !ok {
 		return
 	}
@@ -330,7 +337,7 @@ func checkAggregateTypes(
 ) {
 	canonical := manifest.Canonical()
 	for _, function := range canonical.AllowedAggregates {
-		query, ok := aggregateQuery(t, manifest, function, tenantA)
+		query, ok := aggregateQuery(t, manifest, function)
 		if !ok {
 			continue
 		}
@@ -409,16 +416,16 @@ func seeded(t testing.TB, newExecutor func() dataset.Executor, opts *options) da
 }
 
 // conformanceQuery compiles the simplest valid query the manifest allows: a
-// row count over the whole dataset, windowed if any column permits it. The
-// second result is false when the manifest cannot express one, in which case
-// the failure has already been reported.
-func conformanceQuery(t testing.TB, manifest dataset.Manifest, tenant string) (dataset.Query, bool) {
-	return aggregateQuery(t, manifest, pickAggregate(manifest), tenant)
+// row count over the whole dataset for tenant A, windowed if any column
+// permits it. The second result is false when the manifest cannot express one,
+// in which case the failure has already been reported.
+func conformanceQuery(t testing.TB, manifest dataset.Manifest) (dataset.Query, bool) {
+	return aggregateQuery(t, manifest, pickAggregate(manifest))
 }
 
-// aggregateQuery compiles a query for one specific aggregate.
+// aggregateQuery compiles a query for one specific aggregate, as tenant A.
 func aggregateQuery(
-	t testing.TB, manifest dataset.Manifest, function dataset.AggregateFn, tenant string,
+	t testing.TB, manifest dataset.Manifest, function dataset.AggregateFn,
 ) (dataset.Query, bool) {
 	source := registry.FactSource{
 		Kind:      registry.FactDataset,
@@ -457,7 +464,7 @@ func aggregateQuery(
 	}
 	validAt := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
 	query, _, err := dataset.Compile(source, manifest, dataset.Params{
-		Tenant: tenant, EmployeeID: "E0001", NodeID: "N0001",
+		Tenant: tenantA, EmployeeID: "E0001", NodeID: "N0001",
 		AsOf: validAt, ValidAt: validAt, RowLimit: 100,
 	})
 	if err != nil {

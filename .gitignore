@@ -13,6 +13,7 @@
 *.prof
 *.pprof
 *.log
+InstallationLog.txt
 .DS_Store
 Thumbs.db
 /.idea/

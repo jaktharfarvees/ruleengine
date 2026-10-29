@@ -23,11 +23,11 @@ var probeAt = time.Date(2026, time.June, 15, 0, 0, 0, 0, time.UTC)
 // exercise the lot.
 func probeManifest() dataset.Manifest {
 	return dataset.Manifest{
-		Dataset: "probe.rows", OwnerService: "probe", Domain: "probe",
+		DatasetID: "probe.rows", SourceService: "probe", Domain: "probe",
 		Grain: "one row per probe", TenantScoped: true,
 		Status: dataset.Published, Version: "1.0.0", PublishedAt: probeAt,
 		MaxWindowDays: 365,
-		Aggregates: []dataset.AggregateFn{
+		AllowedAggregates: []dataset.AggregateFn{
 			dataset.AggregateCount, dataset.AggregateSum, dataset.AggregateMax,
 			dataset.AggregateMin, dataset.AggregateAvg, dataset.AggregateStreak,
 			dataset.AggregateLatest, dataset.AggregateExists,
@@ -246,7 +246,7 @@ func TestInMemoryExecutorRefusesUnusableInput(t *testing.T) {
 	}
 	// An invalid manifest.
 	broken := probeManifest()
-	broken.OwnerService, broken.SourceService = "", ""
+	broken.SourceService = ""
 	if _, err := ruletest.NewInMemoryExecutor(broken); err == nil {
 		t.Fatal("an invalid manifest was accepted")
 	}
@@ -290,12 +290,12 @@ func TestInMemoryExecutorHonoursCancellationAndDelay(t *testing.T) {
 func TestInMemoryExecutorDeclaresItsManifests(t *testing.T) {
 	executor := probeExecutor(t)
 	manifests := executor.Manifests()
-	if len(manifests) != 1 || manifests[0].Dataset != "probe.rows" {
+	if len(manifests) != 1 || manifests[0].DatasetID != "probe.rows" {
 		t.Fatalf("Manifests = %+v", manifests)
 	}
 	// A query for a dataset it does not serve is refused.
 	other := probeManifest()
-	other.Dataset = "elsewhere.rows"
+	other.DatasetID = "elsewhere.rows"
 	source := registry.FactSource{
 		Kind: registry.FactDataset, Dataset: "elsewhere.rows",
 		Window:    &registry.FactWindow{Column: "day", RelativeTo: dataset.TokenValidAt, LastDays: 7},

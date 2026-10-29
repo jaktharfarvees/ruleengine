@@ -44,7 +44,6 @@ func cloneRule(definition rule.RuleDefinition) rule.RuleDefinition {
 func cloneManifest(manifest dataset.Manifest) dataset.Manifest {
 	manifest = manifest.Canonical()
 	manifest.AllowedAggregates = append([]dataset.AggregateFn(nil), manifest.AllowedAggregates...)
-	manifest.Aggregates = append([]dataset.AggregateFn(nil), manifest.Aggregates...)
 	manifest.Columns = append([]dataset.Column(nil), manifest.Columns...)
 	for index := range manifest.Columns {
 		manifest.Columns[index].AllowedValues = append([]string(nil), manifest.Columns[index].AllowedValues...)

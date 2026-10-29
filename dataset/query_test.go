@@ -248,7 +248,7 @@ func TestUntenantedCopy(t *testing.T) {
 		rowLimit: 10,
 	}
 
-	stripped := UntenantedCopy(query)
+	stripped := untenantedCopy(query)
 	if _, present := stripped.TenantPredicate(); present {
 		t.Fatal("the injected tenant predicate survived")
 	}
@@ -257,7 +257,7 @@ func TestUntenantedCopy(t *testing.T) {
 		t.Fatalf("predicates = %+v, want only the author's own filter", remaining)
 	}
 	if _, present := query.TenantPredicate(); !present {
-		t.Fatal("UntenantedCopy mutated its argument")
+		t.Fatal("untenantedCopy mutated its argument")
 	}
 
 	// A query that carries nothing but the tenant predicate becomes empty
@@ -265,7 +265,7 @@ func TestUntenantedCopy(t *testing.T) {
 	only := Query{predicates: []Predicate{
 		{Column: TenantColumn, Values: []any{"T1"}, Injected: true},
 	}}
-	if got := UntenantedCopy(only).Predicates(); len(got) != 0 {
+	if got := untenantedCopy(only).Predicates(); len(got) != 0 {
 		t.Fatalf("predicates = %+v, want none", got)
 	}
 }

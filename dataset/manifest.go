@@ -88,14 +88,10 @@ type Manifest struct {
 	RowLimit          int           `json:"rowLimit,omitempty"`
 	AllowedAggregates []AggregateFn `json:"allowedAggregates"`
 	Columns           []Column      `json:"columns"`
-	// Deprecated v1 Go construction fields. New code uses DatasetID,
-	// SourceService, and AllowedAggregates.
-	Dataset      string        `json:"-"`
-	OwnerService string        `json:"-"`
-	Aggregates   []AggregateFn `json:"-"`
 }
 
-// UnmarshalJSON decodes the v2 names and synchronizes deprecated Go aliases.
+// UnmarshalJSON decodes the v2 names and synchronizes the deprecated Column
+// aliases.
 func (m *Manifest) UnmarshalJSON(data []byte) error {
 	type wire Manifest
 	var decoded wire
@@ -113,27 +109,9 @@ func (m Manifest) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wire(m))
 }
 
-// Canonical returns a copy with v2 and legacy in-memory aliases synchronized.
+// Canonical returns a copy with the v2 and legacy Column aliases synchronized.
 // The legacy fields are never serialized.
 func (m Manifest) Canonical() Manifest {
-	if m.DatasetID == "" {
-		m.DatasetID = m.Dataset
-	}
-	if m.Dataset == "" {
-		m.Dataset = m.DatasetID
-	}
-	if m.SourceService == "" {
-		m.SourceService = m.OwnerService
-	}
-	if m.OwnerService == "" {
-		m.OwnerService = m.SourceService
-	}
-	if m.AllowedAggregates == nil {
-		m.AllowedAggregates = append([]AggregateFn(nil), m.Aggregates...)
-	}
-	if m.Aggregates == nil {
-		m.Aggregates = append([]AggregateFn(nil), m.AllowedAggregates...)
-	}
 	for index := range m.Columns {
 		column := &m.Columns[index]
 		if column.DataType == "" {
@@ -230,7 +208,7 @@ func (m Manifest) Column(name string) (Column, bool) {
 // Offers reports whether the dataset offers an aggregate.
 func (m Manifest) Offers(aggregate AggregateFn) bool {
 	m = m.Canonical()
-	for _, offered := range m.Aggregates {
+	for _, offered := range m.AllowedAggregates {
 		if offered == aggregate {
 			return true
 		}

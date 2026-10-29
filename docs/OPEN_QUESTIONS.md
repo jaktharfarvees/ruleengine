@@ -44,8 +44,9 @@ business definition.
 
 ## Deliberate compatibility items
 
-- `Config.FailClosedDomains`, legacy Go aliases such as `Scope`, `Dataset`, and
-  `OwnerService`, and the former public tie reason constants remain for source
+- `Config.FailClosedDomains`, legacy Go aliases such as `Scope` and the
+  registry's `Dataset` and `OwnerService` (the `dataset.Manifest` aliases are
+  gone), and the former public tie reason constants remain for source
   compatibility. V2 JSON emits only the current vocabulary, and runtime does
   not emit retired reason codes.
 - `ConflictPolicy` is accepted for forward compatibility. Runtime precedence

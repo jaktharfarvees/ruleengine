@@ -334,8 +334,8 @@ func TestDatasetFixturesMatchSchemaAndModel(t *testing.T) {
 			}
 			// The file name is the dataset identifier, so a fact declaring a
 			// dataset can be routed to its manifest by name alone.
-			if want := strings.TrimSuffix(entry.Name(), ".json"); manifest.Dataset != want {
-				t.Fatalf("manifest declares %q but is filed as %q", manifest.Dataset, want)
+			if want := strings.TrimSuffix(entry.Name(), ".json"); manifest.DatasetID != want {
+				t.Fatalf("manifest declares %q but is filed as %q", manifest.DatasetID, want)
 			}
 			roundTrip, err := json.Marshal(manifest)
 			if err != nil {

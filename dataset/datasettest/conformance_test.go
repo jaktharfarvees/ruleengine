@@ -14,8 +14,7 @@ import (
 )
 
 // validManifest is deliberately a v2-only manifest: AllowedAggregates and
-// DataType are set, the deprecated Aggregates and Type fields are not. Reading
-// the deprecated field directly would index an empty slice.
+// DataType are set, the deprecated column Type field is not.
 func validManifest() dataset.Manifest {
 	return dataset.Manifest{
 		DatasetID: "attendance.days", SourceService: "attendance-service", Domain: "attendance",
@@ -306,14 +305,10 @@ func TestAggregateTypeMatrixCoversEveryOfferedAggregate(t *testing.T) {
 	}
 }
 
-// TestPickAggregateReadsAllowedAggregates is the regression test for item 4: a
-// v2-only manifest has an empty deprecated Aggregates slice, and indexing it
-// panicked.
+// TestPickAggregateReadsAllowedAggregates pins that the aggregate is chosen
+// from AllowedAggregates, the only list a manifest has.
 func TestPickAggregateReadsAllowedAggregates(t *testing.T) {
 	manifest := validManifest()
-	if len(manifest.Aggregates) != 0 {
-		t.Fatalf("the fixture is not v2-only: Aggregates = %v", manifest.Aggregates)
-	}
 
 	// The preferred row aggregate is offered, so it is chosen.
 	if got := pickAggregate(manifest); got != dataset.AggregateCount {
@@ -321,20 +316,11 @@ func TestPickAggregateReadsAllowedAggregates(t *testing.T) {
 	}
 
 	// None of the preferred four is offered, so it falls back to the first
-	// AllowedAggregates entry. Before the fix this read Aggregates[0] and
-	// panicked with an index out of range.
+	// AllowedAggregates entry.
 	fallback := validManifest()
 	fallback.AllowedAggregates = []dataset.AggregateFn{dataset.AggregateAvg}
 	if got := pickAggregate(fallback); got != dataset.AggregateAvg {
 		t.Fatalf("pickAggregate = %q, want avg", got)
-	}
-
-	// A v1-style manifest still works, through Canonical.
-	legacy := validManifest()
-	legacy.AllowedAggregates = nil
-	legacy.Aggregates = []dataset.AggregateFn{dataset.AggregateAvg}
-	if got := pickAggregate(legacy); got != dataset.AggregateAvg {
-		t.Fatalf("pickAggregate on a v1 manifest = %q, want avg", got)
 	}
 
 	// An empty manifest is reported by Validate, not a panic here.
@@ -383,7 +369,7 @@ func TestConformanceQueryAdaptsToTheManifest(t *testing.T) {
 	manifest := validManifest()
 	manifest.AllowedAggregates = []dataset.AggregateFn{dataset.AggregateSum}
 	manifest.Columns[1].Windowable = false // workDate
-	query, ok := conformanceQuery(t, manifest, tenantA)
+	query, ok := conformanceQuery(t, manifest)
 	if !ok {
 		t.Fatal("the suite could not build a query")
 	}
@@ -402,7 +388,7 @@ func TestConformanceQueryAdaptsToTheManifest(t *testing.T) {
 		manifest.Columns[index].Aggregatable = false
 	}
 	recorder := &recordingTB{TB: t}
-	if _, built := conformanceQuery(recorder, manifest, tenantA); built {
+	if _, built := conformanceQuery(recorder, manifest); built {
 		t.Fatal("the suite built a query from a contradictory manifest")
 	}
 	if !recorder.failed || !strings.Contains(recorder.message, "aggregatable") {
@@ -418,7 +404,7 @@ func TestConformanceQueryAdaptsToTheManifest(t *testing.T) {
 		numeric.Columns[index].Aggregatable = numeric.Columns[index].Name == "status"
 	}
 	recorder = &recordingTB{TB: t}
-	if _, built := conformanceQuery(recorder, numeric, tenantA); built {
+	if _, built := conformanceQuery(recorder, numeric); built {
 		t.Fatal("the suite summed a non-numeric column")
 	}
 	if recorder.failed {
@@ -453,7 +439,7 @@ func TestUntenantedCopyStripsOnlyTheInjectedPredicate(t *testing.T) {
 		t.Fatal("Compile produced no tenant predicate")
 	}
 
-	stripped := dataset.UntenantedCopy(query)
+	stripped := untenantedCopy(query)
 	if _, present := stripped.TenantPredicate(); present {
 		t.Fatal("the tenant predicate survived")
 	}
@@ -688,7 +674,7 @@ type brokenManifestExecutor struct{ manifest dataset.Manifest }
 
 func (b *brokenManifestExecutor) Manifests() []dataset.Manifest {
 	broken := b.manifest
-	broken.SourceService, broken.OwnerService = "", ""
+	broken.SourceService = ""
 	return []dataset.Manifest{broken}
 }
 

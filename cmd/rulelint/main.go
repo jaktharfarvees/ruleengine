@@ -294,11 +294,11 @@ func lintDataset(result *report, path string, data []byte) {
 		result.problem(path, "%v", err)
 		return
 	}
-	if existing, duplicate := result.loadedManifests[manifest.Dataset]; duplicate {
-		result.problem(path, "declares dataset %q, which %q already declares", manifest.Dataset, existing.SourceService)
+	if existing, duplicate := result.loadedManifests[manifest.DatasetID]; duplicate {
+		result.problem(path, "declares dataset %q, which %q already declares", manifest.DatasetID, existing.SourceService)
 		return
 	}
-	result.loadedManifests[manifest.Dataset] = manifest
+	result.loadedManifests[manifest.DatasetID] = manifest
 }
 
 func lintHierarchy(result *report, path string, data []byte) {

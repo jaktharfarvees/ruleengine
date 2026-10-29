@@ -97,7 +97,7 @@ func (s *resolution) fetchDataset(
 		s.note(note)
 	}
 
-	resolved := Resolved{Dataset: manifest.Dataset}
+	resolved := Resolved{Dataset: manifest.DatasetID}
 	fingerprint := query.Fingerprint()
 
 	// Per-request de-duplication. Two decision points needing the same fact
@@ -113,7 +113,7 @@ func (s *resolution) fetchDataset(
 			value = source.OnEmpty
 		}
 		if value == nil {
-			return nil, Resolved{}, s.emptyFault(field, manifest.Dataset)
+			return nil, Resolved{}, s.emptyFault(field, manifest.DatasetID)
 		}
 		return value, resolved, nil
 	}
@@ -131,7 +131,7 @@ func (s *resolution) fetchDataset(
 			return nil, Resolved{}, s.timeoutFault(field, err)
 		}
 		return nil, Resolved{}, &Fault{Code: ReasonUnresolvable, Field: field,
-			Err: fmt.Errorf("executor failed for dataset %q: %w", manifest.Dataset, err)}
+			Err: fmt.Errorf("executor failed for dataset %q: %w", manifest.DatasetID, err)}
 	}
 	if err := runCtx.Err(); err != nil && errors.Is(err, context.DeadlineExceeded) {
 		return nil, Resolved{}, s.timeoutFault(field, err)
@@ -158,7 +158,7 @@ func (s *resolution) fetchDataset(
 		value = source.OnEmpty
 	}
 	if value == nil {
-		return nil, Resolved{}, s.emptyFault(field, manifest.Dataset)
+		return nil, Resolved{}, s.emptyFault(field, manifest.DatasetID)
 	}
 	return value, resolved, nil
 }

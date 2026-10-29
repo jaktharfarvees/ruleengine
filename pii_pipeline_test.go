@@ -61,6 +61,7 @@ func TestPIIIsRedactedAtDecisionTraceAndAuditBoundaries(t *testing.T) {
 	config := baseConfig()
 	config.TraceEnabled = true
 	instance := engineOverBundle(t, config, func(bundle *store.Bundle) {
+		retargetRules(bundle, piiTraceEngine{}.Name())
 		for index := range bundle.Fields {
 			switch bundle.Fields[index].Name {
 			case "joinDate", "eligible":
@@ -105,10 +106,19 @@ func (s recordingSpan) RecordError(err error) {
 	s.tracer.errors = append(s.tracer.errors, err.Error())
 }
 
+// retargetRules points every rule at the stub engine a test installs, since a
+// rule naming a different engine than the configured one is refused at load.
+func retargetRules(bundle *store.Bundle, engineName string) {
+	for index := range bundle.Rules {
+		bundle.Rules[index].EngineRef.Engine = engineName
+	}
+}
+
 func TestDependencyErrorTextIsNotCopiedIntoTelemetry(t *testing.T) {
 	const secret = "person@example.com"
 	tracer := &recordingTracer{}
-	instance := engineOver(t, baseConfig(),
+	instance := engineOverBundle(t, baseConfig(),
+		func(bundle *store.Bundle) { retargetRules(bundle, piiTraceEngine{}.Name()) },
 		ruleengine.WithEngine(piiTraceEngine{err: errors.New(secret)}),
 		ruleengine.WithTracer(tracer))
 

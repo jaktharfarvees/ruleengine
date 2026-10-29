@@ -31,9 +31,9 @@ func TestManifestJSONUsesOnlyV2Names(t *testing.T) {
 	if err := json.Unmarshal(payload, &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if decoded.DatasetID != original.Dataset || decoded.Dataset != original.Dataset ||
-		decoded.SourceService != original.OwnerService || decoded.OwnerService != original.OwnerService ||
-		len(decoded.AllowedAggregates) != len(original.Aggregates) ||
+	if decoded.DatasetID != original.DatasetID ||
+		decoded.SourceService != original.SourceService ||
+		len(decoded.AllowedAggregates) != len(original.AllowedAggregates) ||
 		decoded.Columns[6].DataType != registry.DataEnum || len(decoded.Columns[6].AllowedValues) != 2 {
 		t.Fatalf("v2 round trip did not synchronize compatibility aliases: %+v", decoded)
 	}
@@ -41,12 +41,12 @@ func TestManifestJSONUsesOnlyV2Names(t *testing.T) {
 
 func validManifest() Manifest {
 	return Manifest{
-		Dataset: "attendance.days", OwnerService: "attendance-service", Domain: "attendance",
+		DatasetID: "attendance.days", SourceService: "attendance-service", Domain: "attendance",
 		Grain: "one row per employee per work day", TenantScoped: true,
 		Status: Published, Version: "1.0.0",
 		PublishedAt:   time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC),
 		MaxWindowDays: 365, RowLimit: 2000,
-		Aggregates: []AggregateFn{AggregateCount, AggregateSum, AggregateAvg, AggregateStreak, AggregateLatest, AggregateExists},
+		AllowedAggregates: []AggregateFn{AggregateCount, AggregateSum, AggregateAvg, AggregateStreak, AggregateLatest, AggregateExists},
 		Columns: []Column{
 			{Name: "employeeId", Type: registry.DataString, Filterable: true, PII: true},
 			{Name: "workDate", Type: registry.DataDate, Filterable: true, Windowable: true},
@@ -68,16 +68,16 @@ func TestManifestValidate(t *testing.T) {
 		breakIt func(*Manifest)
 		want    string
 	}{
-		{"no dataset", func(m *Manifest) { m.Dataset = "" }, "dataset identifier"},
-		{"no source service", func(m *Manifest) { m.OwnerService, m.SourceService = "", "" }, "source service"},
+		{"no dataset", func(m *Manifest) { m.DatasetID = "" }, "dataset identifier"},
+		{"no source service", func(m *Manifest) { m.SourceService = "" }, "source service"},
 		{"no domain", func(m *Manifest) { m.Domain = "" }, "source service"},
 		{"no status", func(m *Manifest) { m.Status = "" }, "status"},
 		{"no window maximum", func(m *Manifest) { m.MaxWindowDays = 0 }, "maxWindowDays"},
 		{"negative row limit", func(m *Manifest) { m.RowLimit = -1 }, "rowLimit"},
-		{"no aggregates", func(m *Manifest) { m.Aggregates = nil }, "no aggregates"},
-		{"unknown aggregate", func(m *Manifest) { m.Aggregates = []AggregateFn{"median"} }, "unknown aggregate"},
+		{"no aggregates", func(m *Manifest) { m.AllowedAggregates = nil }, "no aggregates"},
+		{"unknown aggregate", func(m *Manifest) { m.AllowedAggregates = []AggregateFn{"median"} }, "unknown aggregate"},
 		{"duplicate aggregate", func(m *Manifest) {
-			m.Aggregates = []AggregateFn{AggregateCount, AggregateCount}
+			m.AllowedAggregates = []AggregateFn{AggregateCount, AggregateCount}
 		}, "twice"},
 		{"no columns", func(m *Manifest) { m.Columns = nil }, "no columns"},
 		{"unnamed column", func(m *Manifest) { m.Columns[0].Name = "" }, "no name"},

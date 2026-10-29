@@ -696,3 +696,31 @@ func (s *collectingSink) records() []audit.Record {
 	defer s.mu.Unlock()
 	return append([]audit.Record(nil), s.rows...)
 }
+
+// TestRuleNamingAnotherEngineIsRefusedAtLoad pins that an engineRef the
+// configured engine cannot serve fails the load, not a later decision.
+func TestRuleNamingAnotherEngineIsRefusedAtLoad(t *testing.T) {
+	bundle := sharedBundle(t)
+	if len(bundle.Rules) == 0 {
+		t.Fatal("the shared bundle has no rules")
+	}
+	bundle.Rules[0].EngineRef.Engine = "no-such-engine"
+
+	instance, err := ruleengine.New(baseConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = instance.Close() })
+	err = instance.ApplyBundle(bundle)
+	if !errors.Is(err, ruleengine.ErrConfig) {
+		t.Fatalf("ApplyBundle = %v, want ErrConfig", err)
+	}
+	for _, want := range []string{"no-such-engine", "decisiontable", bundle.Rules[0].RuleKey.String()} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not mention %q", err, want)
+		}
+	}
+	if instance.Ready() == nil {
+		t.Fatal("a refused bundle was published")
+	}
+}

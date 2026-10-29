@@ -327,7 +327,7 @@ func reasonScenarios() []scenario {
 			want: ruleengine.ReasonDatasetDeprecated,
 			bundle: func(b *store.Bundle) {
 				for index := range b.Manifests {
-					if b.Manifests[index].Dataset == "leave.balances" {
+					if b.Manifests[index].DatasetID == "leave.balances" {
 						b.Manifests[index].Status = dataset.Deprecated
 					}
 				}
@@ -341,7 +341,7 @@ func reasonScenarios() []scenario {
 			want: ruleengine.ReasonPIIColumnInFilter,
 			bundle: func(b *store.Bundle) {
 				for index := range b.Manifests {
-					if b.Manifests[index].Dataset != "leave.balances" {
+					if b.Manifests[index].DatasetID != "leave.balances" {
 						continue
 					}
 					for column := range b.Manifests[index].Columns {

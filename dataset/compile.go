@@ -111,14 +111,14 @@ func Compile(source registry.FactSource, manifest Manifest, params Params) (Quer
 			Err: fmt.Errorf("fact source kind %q is not a dataset source", source.Kind)}
 	}
 	if err := manifest.Validate(); err != nil {
-		return Query{}, nil, &Fault{Code: ReasonDatasetNotPublished, Dataset: manifest.Dataset, Err: err}
+		return Query{}, nil, &Fault{Code: ReasonDatasetNotPublished, Dataset: manifest.DatasetID, Err: err}
 	}
-	if source.Dataset != manifest.Dataset {
+	if source.Dataset != manifest.DatasetID {
 		return Query{}, nil, &Fault{Code: ReasonDatasetNotPublished, Dataset: source.Dataset,
-			Err: fmt.Errorf("declared dataset does not match the manifest %q", manifest.Dataset)}
+			Err: fmt.Errorf("declared dataset does not match the manifest %q", manifest.DatasetID)}
 	}
 	if params.Tenant == "" {
-		return Query{}, nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.Dataset,
+		return Query{}, nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.DatasetID,
 			Err: fmt.Errorf("a tenant is required to scope a dataset query")}
 	}
 
@@ -129,7 +129,7 @@ func Compile(source registry.FactSource, manifest Manifest, params Params) (Quer
 	// away so a migration can be driven from the audit trail.
 	queryable, deprecated := manifest.Queryable()
 	if !queryable {
-		return Query{}, nil, &Fault{Code: ReasonDatasetNotPublished, Dataset: manifest.Dataset,
+		return Query{}, nil, &Fault{Code: ReasonDatasetNotPublished, Dataset: manifest.DatasetID,
 			Err: fmt.Errorf("status %q is not queryable", manifest.Status)}
 	}
 	if deprecated {
@@ -141,7 +141,7 @@ func Compile(source registry.FactSource, manifest Manifest, params Params) (Quer
 	// protects the decision, the cap protects the store.
 	rowLimit := params.RowLimit
 	if rowLimit <= 0 {
-		return Query{}, nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.Dataset,
+		return Query{}, nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.DatasetID,
 			Err: fmt.Errorf("a positive row limit is required; there is no unbounded query")}
 	}
 	if manifest.RowLimit > 0 && manifest.RowLimit < rowLimit {
@@ -179,12 +179,12 @@ func Compile(source registry.FactSource, manifest Manifest, params Params) (Quer
 	// same request re-run for a payroll correction has to produce the same
 	// fact, not the same fact most of the time.
 	if window == nil && orderDependent(aggregate.Fn) {
-		return Query{}, nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.Dataset,
+		return Query{}, nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.DatasetID,
 			Err: fmt.Errorf("the %q aggregate depends on row order and requires a window", aggregate.Fn)}
 	}
 
 	return Query{
-		dataset:        manifest.Dataset,
+		dataset:        manifest.DatasetID,
 		datasetVersion: manifest.Version,
 		predicates:     predicates,
 		window:         window,
@@ -202,25 +202,25 @@ func compileFilters(filters []rule.FilterCondition, manifest Manifest, params Pa
 		// G2 and G8 on the column name itself: a column is author-controlled
 		// text like any value.
 		if err := rejectQuerySyntax(where+" column", filter.Attribute); err != nil {
-			return nil, nil, &Fault{Code: ReasonRawQueryRejected, Dataset: manifest.Dataset, Err: err}
+			return nil, nil, &Fault{Code: ReasonRawQueryRejected, Dataset: manifest.DatasetID, Err: err}
 		}
 
 		// G9. An author filtering on the tenant column is an error, not
 		// something to merge with the injected predicate: the author must not
 		// control tenant scoping, and a conflicting pair would be ambiguous.
 		if filter.Attribute == TenantColumn {
-			return nil, nil, &Fault{Code: ReasonColumnNotAllowed, Dataset: manifest.Dataset, Column: filter.Attribute,
+			return nil, nil, &Fault{Code: ReasonColumnNotAllowed, Dataset: manifest.DatasetID, Column: filter.Attribute,
 				Err: fmt.Errorf("tenant scoping is injected by the library and must not be authored")}
 		}
 
 		// G3. The column exists and the owning service permits filtering it.
 		column, declared := manifest.Column(filter.Attribute)
 		if !declared {
-			return nil, nil, &Fault{Code: ReasonColumnNotAllowed, Dataset: manifest.Dataset, Column: filter.Attribute,
+			return nil, nil, &Fault{Code: ReasonColumnNotAllowed, Dataset: manifest.DatasetID, Column: filter.Attribute,
 				Err: fmt.Errorf("column is not declared by the manifest")}
 		}
 		if !column.Filterable {
-			return nil, nil, &Fault{Code: ReasonColumnNotAllowed, Dataset: manifest.Dataset, Column: column.Name,
+			return nil, nil, &Fault{Code: ReasonColumnNotAllowed, Dataset: manifest.DatasetID, Column: column.Name,
 				Err: fmt.Errorf("column is not filterable")}
 		}
 
@@ -253,12 +253,12 @@ func compileValues(where string, filter rule.FilterCondition, column Column, man
 		wantCount = 2
 	case rule.FilterExists, rule.FilterNotExists:
 		if filter.Value != nil {
-			return nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.Dataset, Column: column.Name,
+			return nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.DatasetID, Column: column.Name,
 				Err: fmt.Errorf("%s uses an existence operator and must carry no value", where)}
 		}
 		return nil, nil
 	default:
-		return nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.Dataset, Column: column.Name,
+		return nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.DatasetID, Column: column.Name,
 			Err: fmt.Errorf("%s uses unsupported operator %q", where, filter.Op)}
 	}
 
@@ -267,11 +267,11 @@ func compileValues(where string, filter rule.FilterCondition, column Column, man
 		return nil, err
 	}
 	if wantCount > 0 && len(raw) != wantCount {
-		return nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.Dataset, Column: column.Name,
+		return nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.DatasetID, Column: column.Name,
 			Err: fmt.Errorf("%s with operator %q requires %d values, got %d", where, filter.Op, wantCount, len(raw))}
 	}
 	if wantCount == -1 && len(raw) == 0 {
-		return nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.Dataset, Column: column.Name,
+		return nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.DatasetID, Column: column.Name,
 			Err: fmt.Errorf("%s with operator %q requires a non-empty set", where, filter.Op)}
 	}
 
@@ -280,11 +280,11 @@ func compileValues(where string, filter rule.FilterCondition, column Column, man
 		// G2 and G8 on every author-controlled string value.
 		if text, isText := operand.(string); isText {
 			if err := rejectQuerySyntax(where+" value", text); err != nil {
-				return nil, &Fault{Code: ReasonRawQueryRejected, Dataset: manifest.Dataset, Column: column.Name, Err: err}
+				return nil, &Fault{Code: ReasonRawQueryRejected, Dataset: manifest.DatasetID, Column: column.Name, Err: err}
 			}
 			substituted, wasToken, err := substitute(text, params)
 			if err != nil {
-				return nil, &Fault{Code: ReasonRawQueryRejected, Dataset: manifest.Dataset, Column: column.Name, Err: err}
+				return nil, &Fault{Code: ReasonRawQueryRejected, Dataset: manifest.DatasetID, Column: column.Name, Err: err}
 			}
 			if wasToken {
 				values = append(values, substituted)
@@ -296,7 +296,7 @@ func compileValues(where string, filter rule.FilterCondition, column Column, man
 		// the same check that will type-check the resulting fact, so a filter
 		// cannot pass here and fail there.
 		if !column.Type.Accepts(operand, column.Values) {
-			return nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.Dataset, Column: column.Name,
+			return nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.DatasetID, Column: column.Name,
 				Err: fmt.Errorf("%s value is not a valid %s for this column", where, column.Type)}
 		}
 		values = append(values, operand)
@@ -309,7 +309,7 @@ func compileValues(where string, filter rule.FilterCondition, column Column, man
 func operands(where string, value any, manifest Manifest, column Column) ([]any, error) {
 	switch typed := value.(type) {
 	case nil:
-		return nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.Dataset, Column: column.Name,
+		return nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.DatasetID, Column: column.Name,
 			Err: fmt.Errorf("%s carries no value", where)}
 	case []any:
 		return typed, nil
@@ -355,12 +355,12 @@ func compileWindow(window *registry.FactWindow, manifest Manifest, params Params
 		return nil, nil
 	}
 	if err := rejectQuerySyntax("window column", window.Column); err != nil {
-		return nil, &Fault{Code: ReasonRawQueryRejected, Dataset: manifest.Dataset, Err: err}
+		return nil, &Fault{Code: ReasonRawQueryRejected, Dataset: manifest.DatasetID, Err: err}
 	}
 	// A column-pair window is not expressible as a single bounded range here;
 	// it is refused rather than silently narrowed to one of the two columns.
 	if window.FromColumn != "" || window.ToColumn != "" {
-		return nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.Dataset,
+		return nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.DatasetID,
 			Err: fmt.Errorf("a from/to column window is not supported yet; declare a lastDays window instead")}
 	}
 
@@ -368,22 +368,22 @@ func compileWindow(window *registry.FactWindow, manifest Manifest, params Params
 	// promised to range-scan.
 	column, declared := manifest.Column(window.Column)
 	if !declared {
-		return nil, &Fault{Code: ReasonColumnNotAllowed, Dataset: manifest.Dataset, Column: window.Column,
+		return nil, &Fault{Code: ReasonColumnNotAllowed, Dataset: manifest.DatasetID, Column: window.Column,
 			Err: fmt.Errorf("window column is not declared by the manifest")}
 	}
 	if !column.Windowable {
-		return nil, &Fault{Code: ReasonColumnNotAllowed, Dataset: manifest.Dataset, Column: column.Name,
+		return nil, &Fault{Code: ReasonColumnNotAllowed, Dataset: manifest.DatasetID, Column: column.Name,
 			Err: fmt.Errorf("column is not windowable")}
 	}
 
 	// G5. A window must be positive and within the dataset's maximum. The
 	// message names both numbers so an author can fix it without reading docs.
 	if window.LastDays <= 0 {
-		return nil, &Fault{Code: ReasonWindowTooWide, Dataset: manifest.Dataset, Column: column.Name,
+		return nil, &Fault{Code: ReasonWindowTooWide, Dataset: manifest.DatasetID, Column: column.Name,
 			Err: fmt.Errorf("lastDays must be positive, got %d", window.LastDays)}
 	}
 	if window.LastDays > manifest.MaxWindowDays {
-		return nil, &Fault{Code: ReasonWindowTooWide, Dataset: manifest.Dataset, Column: column.Name,
+		return nil, &Fault{Code: ReasonWindowTooWide, Dataset: manifest.DatasetID, Column: column.Name,
 			Err: fmt.Errorf("lastDays %d exceeds the dataset maximum of %d", window.LastDays, manifest.MaxWindowDays)}
 	}
 
@@ -397,11 +397,11 @@ func compileWindow(window *registry.FactWindow, manifest Manifest, params Params
 	case TokenAsOf:
 		anchor = params.AsOf
 	default:
-		return nil, &Fault{Code: ReasonRawQueryRejected, Dataset: manifest.Dataset, Column: column.Name,
+		return nil, &Fault{Code: ReasonRawQueryRejected, Dataset: manifest.DatasetID, Column: column.Name,
 			Err: fmt.Errorf("window relativeTo must be %s or %s, got %q", TokenAsOf, TokenValidAt, window.RelativeTo)}
 	}
 	if anchor.IsZero() {
-		return nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.Dataset, Column: column.Name,
+		return nil, &Fault{Code: ReasonUnresolvable, Dataset: manifest.DatasetID, Column: column.Name,
 			Err: fmt.Errorf("window is relative to %q but the request carries no such time", window.RelativeTo)}
 	}
 
@@ -414,11 +414,11 @@ func compileWindow(window *registry.FactWindow, manifest Manifest, params Params
 
 func compileAggregate(aggregate *registry.FactAggregate, manifest Manifest) (AggregateSpec, error) {
 	if aggregate == nil {
-		return AggregateSpec{}, &Fault{Code: ReasonUnresolvable, Dataset: manifest.Dataset,
+		return AggregateSpec{}, &Fault{Code: ReasonUnresolvable, Dataset: manifest.DatasetID,
 			Err: fmt.Errorf("a dataset fact source must declare an aggregate")}
 	}
 	if !aggregate.Fn.Valid() {
-		return AggregateSpec{}, &Fault{Code: ReasonAggregateUnsupported, Dataset: manifest.Dataset,
+		return AggregateSpec{}, &Fault{Code: ReasonAggregateUnsupported, Dataset: manifest.DatasetID,
 			Err: fmt.Errorf("unknown aggregate %q", aggregate.Fn)}
 	}
 
@@ -426,20 +426,20 @@ func compileAggregate(aggregate *registry.FactAggregate, manifest Manifest) (Agg
 	// an ordered index cannot answer a streak, and refusing is better than
 	// scanning its whole history to fake one.
 	if !manifest.Offers(aggregate.Fn) {
-		return AggregateSpec{}, &Fault{Code: ReasonAggregateUnsupported, Dataset: manifest.Dataset,
-			Err: fmt.Errorf("dataset %q does not offer the %q aggregate", manifest.Dataset, aggregate.Fn)}
+		return AggregateSpec{}, &Fault{Code: ReasonAggregateUnsupported, Dataset: manifest.DatasetID,
+			Err: fmt.Errorf("dataset %q does not offer the %q aggregate", manifest.DatasetID, aggregate.Fn)}
 	}
 
 	if err := rejectQuerySyntax("aggregate column", aggregate.On); err != nil {
-		return AggregateSpec{}, &Fault{Code: ReasonRawQueryRejected, Dataset: manifest.Dataset, Err: err}
+		return AggregateSpec{}, &Fault{Code: ReasonRawQueryRejected, Dataset: manifest.DatasetID, Err: err}
 	}
 	if err := rejectQuerySyntax("aggregate unit", aggregate.Unit); err != nil {
-		return AggregateSpec{}, &Fault{Code: ReasonRawQueryRejected, Dataset: manifest.Dataset, Err: err}
+		return AggregateSpec{}, &Fault{Code: ReasonRawQueryRejected, Dataset: manifest.DatasetID, Err: err}
 	}
 
 	if !aggregate.Fn.NeedsColumn() {
 		if aggregate.On != "" {
-			return AggregateSpec{}, &Fault{Code: ReasonUnresolvable, Dataset: manifest.Dataset, Column: aggregate.On,
+			return AggregateSpec{}, &Fault{Code: ReasonUnresolvable, Dataset: manifest.DatasetID, Column: aggregate.On,
 				Err: fmt.Errorf("the %q aggregate is about rows and must not name a column", aggregate.Fn)}
 		}
 		return AggregateSpec{Fn: aggregate.Fn, Unit: aggregate.Unit}, nil
@@ -448,16 +448,16 @@ func compileAggregate(aggregate *registry.FactAggregate, manifest Manifest) (Agg
 	// G4. The aggregate column must exist and be one the service permits
 	// aggregating.
 	if aggregate.On == "" {
-		return AggregateSpec{}, &Fault{Code: ReasonUnresolvable, Dataset: manifest.Dataset,
+		return AggregateSpec{}, &Fault{Code: ReasonUnresolvable, Dataset: manifest.DatasetID,
 			Err: fmt.Errorf("the %q aggregate requires a column", aggregate.Fn)}
 	}
 	column, declared := manifest.Column(aggregate.On)
 	if !declared {
-		return AggregateSpec{}, &Fault{Code: ReasonColumnNotAllowed, Dataset: manifest.Dataset, Column: aggregate.On,
+		return AggregateSpec{}, &Fault{Code: ReasonColumnNotAllowed, Dataset: manifest.DatasetID, Column: aggregate.On,
 			Err: fmt.Errorf("aggregate column is not declared by the manifest")}
 	}
 	if !column.Aggregatable {
-		return AggregateSpec{}, &Fault{Code: ReasonColumnNotAllowed, Dataset: manifest.Dataset, Column: column.Name,
+		return AggregateSpec{}, &Fault{Code: ReasonColumnNotAllowed, Dataset: manifest.DatasetID, Column: column.Name,
 			Err: fmt.Errorf("column is not aggregatable")}
 	}
 	return AggregateSpec{Fn: aggregate.Fn, On: column.Name, Unit: aggregate.Unit}, nil

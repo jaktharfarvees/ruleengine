@@ -95,7 +95,7 @@ func TestCompileRefusals(t *testing.T) {
 			s.Kind = registry.FactPassed
 		}, ReasonUnresolvable},
 		{"invalid manifest", func(_ *registry.FactSource, m *Manifest, _ *Params) {
-			m.OwnerService, m.SourceService = "", ""
+			m.SourceService = ""
 		}, ReasonDatasetNotPublished},
 		{"declared dataset disagrees", func(s *registry.FactSource, _ *Manifest, _ *Params) {
 			s.Dataset = "other.thing"
@@ -183,7 +183,7 @@ func TestCompileRefusals(t *testing.T) {
 			s.Aggregate.Fn = "median"
 		}, ReasonAggregateUnsupported},
 		{"aggregate the dataset withholds", func(s *registry.FactSource, m *Manifest, _ *Params) {
-			m.Aggregates = []AggregateFn{AggregateCount}
+			m.AllowedAggregates = []AggregateFn{AggregateCount}
 		}, ReasonAggregateUnsupported},
 		{"query syntax in the aggregate column", func(s *registry.FactSource, _ *Manifest, _ *Params) {
 			s.Aggregate.On = "isLate; DROP TABLE x"

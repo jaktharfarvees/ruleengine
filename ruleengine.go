@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/arrowhr/ruleengine/audit"
+	"github.com/arrowhr/ruleengine/engine"
 	"github.com/arrowhr/ruleengine/fact"
 	"github.com/arrowhr/ruleengine/manifest"
 	"github.com/arrowhr/ruleengine/rule"
@@ -82,12 +83,27 @@ func New(config Config, opts ...Option) (*Engine, error) {
 	instance := &Engine{
 		config:  config,
 		options: resolved,
-		cache:   store.NewCache(store.WithMetrics(resolved.metrics), store.WithClock(resolved.clock)),
+		cache: store.NewCache(store.WithMetrics(resolved.metrics), store.WithClock(resolved.clock),
+			store.WithRuleCheck(engineRefCheck(resolved.engine))),
 		stop:    make(chan struct{}),
 		stopped: make(chan struct{}),
 	}
 	instance.versions = store.NewVersionResolver(instance.cache, resolved.manifestStore)
 	return instance, nil
+}
+
+// engineRefCheck rejects a rule whose engineRef names an engine other than the
+// one this Engine evaluates with. Every rule in a bundle is evaluated by that
+// one engine, so a mismatch would otherwise surface only when the rule was
+// selected, as a failed decision rather than a failed load.
+func engineRefCheck(configured engine.Engine) func(rule.RuleDefinition) error {
+	return func(definition rule.RuleDefinition) error {
+		if name := configured.Name(); definition.EngineRef.Engine != name {
+			return fmt.Errorf("%w: rule %q declares engineRef.engine %q but the configured engine is %q",
+				ErrConfig, definition.RuleKey, definition.EngineRef.Engine, name)
+		}
+		return nil
+	}
 }
 
 // Reload loads a complete bundle and publishes it. A failure leaves whatever

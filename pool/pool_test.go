@@ -469,6 +469,65 @@ func TestEngineIsNeverClosedWhileEvaluating(t *testing.T) {
 	}
 }
 
+// TestLastReleaseClosesTheEngineOffTheCallersGoroutine pins that a request
+// which happens to be the last call on a retired engine returns promptly even
+// though the engine's Close is slow.
+func TestLastReleaseClosesTheEngineOffTheCallersGoroutine(t *testing.T) {
+	e := newEnv()
+	e.logGate = make(chan struct{})
+	e.logEnter = make(chan struct{}, 4)
+	e.closeGate = make(chan struct{})
+	e.closeEntered = make(chan struct{}, 4)
+	p, _ := newPool(t, e)
+	handle := mustFor(t, p, "A")
+	logger := e.spyFor("A")
+
+	returned := make(chan error, 1)
+	go func() {
+		_, err := handle.Evaluate(context.Background(), request("A"))
+		returned <- err
+	}()
+	waitFor(t, e.logEnter, "the evaluation to start")
+	if !p.Evict("A") {
+		t.Fatal("Evict reported nothing to evict")
+	}
+
+	// The evaluation is now the last call on a retired entry. Releasing it
+	// must start the slow Close without waiting for it.
+	close(e.logGate)
+	select {
+	case err := <-returned:
+		if err != nil {
+			t.Fatalf("Evaluate failed: %v", err)
+		}
+	case <-time.After(guard):
+		t.Fatal("Evaluate waited for the engine's slow Close")
+	}
+	waitFor(t, e.closeEntered, "the engine's Close to start")
+	if logger.isClosed.Load() {
+		t.Fatal("the slow Close finished before it was released")
+	}
+
+	// Pool.Close still waits for the tracked close rather than leaking it.
+	closed := make(chan error, 1)
+	go func() { closed <- p.Close(context.Background()) }()
+	select {
+	case err := <-closed:
+		t.Fatalf("Pool.Close returned (%v) while an engine was still closing", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(e.closeGate)
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatalf("Pool.Close = %v", err)
+		}
+	case <-time.After(guard):
+		t.Fatal("Pool.Close did not return after the engine closed")
+	}
+	waitFor(t, logger.closed, "the engine to close")
+}
+
 func TestCloseDoesNotCloseAnEngineThatIsStillEvaluating(t *testing.T) {
 	e := newEnv()
 	e.logGate = make(chan struct{})

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/arrowhr/ruleengine/dataset/internal/untenanted"
 	"github.com/arrowhr/ruleengine/rule"
 )
 
@@ -86,18 +87,17 @@ func (q Query) TenantPredicate() (Predicate, bool) {
 	return Predicate{}, false
 }
 
-// UntenantedCopy returns a copy of query with its injected tenant predicate
+// untenantedCopy returns a copy of query with its injected tenant predicate
 // removed.
 //
-// It exists for exactly one purpose: a conformance suite outside this package
-// must be able to present an Executor with the one query Compile will never
-// produce, to check that the Executor refuses it rather than assuming the
-// predicate is there. See dataset/datasettest.
-//
-// Nothing else should call it. A query carrying no tenant predicate is
-// precisely what the injected predicate exists to prevent, and handing one to
-// a real Executor asks it for every tenant's rows.
-func UntenantedCopy(query Query) Query {
+// It exists for exactly one purpose: the conformance suite in
+// dataset/datasettest must be able to present an Executor with the one query
+// Compile will never produce, to check that the Executor refuses it rather
+// than assuming the predicate is there. It is reachable only through
+// dataset/internal/untenanted, so nothing outside dataset can build such a
+// query: it is precisely what the injected predicate exists to prevent, and
+// handing one to a real Executor asks it for every tenant's rows.
+func untenantedCopy(query Query) Query {
 	kept := make([]Predicate, 0, len(query.predicates))
 	for _, predicate := range query.predicates {
 		if !predicate.Injected {
@@ -106,6 +106,13 @@ func UntenantedCopy(query Query) Query {
 	}
 	query.predicates = kept
 	return query
+}
+
+func init() {
+	untenanted.Strip = func(query any) any {
+		typed, _ := query.(Query)
+		return untenantedCopy(typed)
+	}
 }
 
 // Window returns the resolved time window, if the fact declared one.

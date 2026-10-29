@@ -131,6 +131,37 @@ func TestIdempotencyKeyReuseWithDifferentInputsIsRejected(t *testing.T) {
 	}
 }
 
+// TestIdempotencyFingerprintCoversRoutingAction pins that Routing.Action is
+// part of the request's identity: the same key with a different action is a
+// different operation, not a replay.
+func TestIdempotencyFingerprintCoversRoutingAction(t *testing.T) {
+	logger := &countingDurableLogger{}
+	instance := engineOver(t, moneyConfig(),
+		ruleengine.WithIdempotencyStore(ruleengine.NewMemoryIdempotencyStore()),
+		ruleengine.WithDecisionLogger(logger))
+	request := leaveRequest("urn:arrowhr:rule:leave:eligibility:min-service:v1",
+		map[string]any{"joinDate": "2026-05-01"})
+	request.IdempotencyKey = testIdempotencyKey
+	request.Routing.Action = "approve"
+	if _, err := instance.Evaluate(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+
+	// The identical request is a replay, so the conflict below can only come
+	// from the action.
+	if _, err := instance.Evaluate(context.Background(), request); err != nil {
+		t.Fatalf("an identical retry failed: %v", err)
+	}
+
+	request.Routing.Action = "reject"
+	if _, err := instance.Evaluate(context.Background(), request); !errors.Is(err, ruleengine.ErrIdempotencyConflict) {
+		t.Fatalf("a different Routing.Action error = %v, want ErrIdempotencyConflict", err)
+	}
+	if logger.count() != 1 {
+		t.Fatalf("produced %d audit records, want one", logger.count())
+	}
+}
+
 func TestMoneyMovingDecisionRequiresConfiguredStoreAndUUID(t *testing.T) {
 	config := moneyConfig()
 	logger := &countingDurableLogger{}

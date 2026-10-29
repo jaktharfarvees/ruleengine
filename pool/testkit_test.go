@@ -57,6 +57,9 @@ type spy struct {
 
 	entered chan struct{} // receives one value per Log that has started
 	gate    chan struct{} // when non-nil, Log blocks until it is closed
+
+	closeGate    chan struct{} // when non-nil, Close blocks until it is closed
+	closeEntered chan struct{} // receives one value when Close starts
 }
 
 func newSpy(entered, gate chan struct{}) *spy {
@@ -85,6 +88,15 @@ func (s *spy) Log(audit.Record) {
 }
 
 func (s *spy) Close() error {
+	if s.closeEntered != nil {
+		select {
+		case s.closeEntered <- struct{}{}:
+		default:
+		}
+	}
+	if s.closeGate != nil {
+		<-s.closeGate
+	}
 	if s.inLog.Load() > 0 {
 		s.violations.Add(1)
 	}
@@ -109,6 +121,9 @@ type env struct {
 	logGate  chan struct{}
 	logEnter chan struct{}
 	reload   time.Duration
+
+	closeGate    chan struct{} // engines' decision loggers block in Close until closed
+	closeEntered chan struct{}
 }
 
 func newEnv() *env {
@@ -160,6 +175,7 @@ func (e *env) factory(ctx context.Context, tenant string) (*ruleengine.Engine, e
 		engineTenant = tenant
 	}
 	logger := newSpy(e.logEnter, e.logGate)
+	logger.closeGate, logger.closeEntered = e.closeGate, e.closeEntered
 	bundle := tenantBundle(engineTenant)
 	if noHier {
 		bundle = store.Bundle{}

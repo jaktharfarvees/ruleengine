@@ -344,8 +344,8 @@ func TestManifestsEnumerationFeedsAFactResolver(t *testing.T) {
 		t.Fatalf("Manifests() returned %d, want 2", len(manifests))
 	}
 	for name, manifest := range manifests {
-		if manifest.Dataset != name {
-			t.Fatalf("manifest keyed %q declares %q", name, manifest.Dataset)
+		if manifest.DatasetID != name {
+			t.Fatalf("manifest keyed %q declares %q", name, manifest.DatasetID)
 		}
 	}
 	// The copy must be independent: a resolver holding the map must not be
@@ -366,9 +366,9 @@ func TestManifestsEnumerationFeedsAFactResolver(t *testing.T) {
 // testManifest builds a minimal published dataset manifest.
 func testManifest(name string) dataset.Manifest {
 	return dataset.Manifest{
-		Dataset: name, OwnerService: "leave", Domain: "leave", Grain: "one row", TenantScoped: true,
+		DatasetID: name, SourceService: "leave", Domain: "leave", Grain: "one row", TenantScoped: true,
 		Status: dataset.Published, Version: "1.0.0", PublishedAt: january, MaxWindowDays: 1,
-		Aggregates: []dataset.AggregateFn{dataset.AggregateCount},
-		Columns:    []dataset.Column{{Name: "id", Type: registry.DataString, Filterable: true}},
+		AllowedAggregates: []dataset.AggregateFn{dataset.AggregateCount},
+		Columns:           []dataset.Column{{Name: "id", Type: registry.DataString, Filterable: true}},
 	}
 }

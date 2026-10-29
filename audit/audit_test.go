@@ -138,6 +138,13 @@ func TestSinkFailureIsCountedRatherThanRetried(t *testing.T) {
 	for index := 0; index < 4; index++ {
 		logger.Log(Record{DecisionID: "d"})
 	}
+	// Wait for the failures to be counted before closing: a failure that lands
+	// during the drain is reported by Close (see
+	// TestCloseReportsRecordsLostWhileDraining), and this test is about the
+	// counting.
+	for deadline := time.Now().Add(5 * time.Second); logger.Dropped() < 4 && time.Now().Before(deadline); {
+		time.Sleep(time.Millisecond)
+	}
 	if err := logger.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -147,6 +154,43 @@ func TestSinkFailureIsCountedRatherThanRetried(t *testing.T) {
 	if counter.value(telemetry.MetricAuditDropped) != 4 {
 		t.Fatalf("counter read %v, want 4", counter.value(telemetry.MetricAuditDropped))
 	}
+}
+
+// entrySink signals when a write begins and then blocks. With honourCtx it
+// returns when the write's context ends; without it, only when released.
+type entrySink struct {
+	entered    chan struct{}
+	release    chan struct{}
+	honourCtx  bool
+	enterOnce  sync.Once
+	deadlineIn chan time.Duration
+}
+
+func newEntrySink(honourCtx bool) *entrySink {
+	return &entrySink{
+		entered: make(chan struct{}), release: make(chan struct{}),
+		honourCtx: honourCtx, deadlineIn: make(chan time.Duration, 8),
+	}
+}
+
+func (s *entrySink) Write(ctx context.Context, _ []Record) error {
+	if deadline, ok := ctx.Deadline(); ok {
+		select {
+		case s.deadlineIn <- time.Until(deadline):
+		default:
+		}
+	}
+	s.enterOnce.Do(func() { close(s.entered) })
+	if s.honourCtx {
+		select {
+		case <-s.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		return nil
+	}
+	<-s.release
+	return nil
 }
 
 func TestCloseIsIdempotentAndBoundsItsWait(t *testing.T) {
@@ -162,23 +206,128 @@ func TestCloseIsIdempotentAndBoundsItsWait(t *testing.T) {
 	if err := logger.Close(); err != nil {
 		t.Fatalf("a second Close returned %v", err)
 	}
+	if got := len(sink.written()); got != 1 {
+		t.Fatalf("a clean Close wrote %d records, want 1", got)
+	}
 
-	// A sink that will not drain must not hold shutdown open for ever.
-	blocked := make(chan struct{})
-	defer close(blocked)
-	stuck, err := NewAsync(&recordingSink{block: blocked}, 4, telemetry.Nop(),
-		WithBatchSize(1), WithDrainTimeout(20*time.Millisecond))
+	// A sink that will not drain must not hold shutdown open for ever, and
+	// Close must say records were lost. Both a sink that honours its context
+	// and one that ignores it are bounded.
+	for _, honourCtx := range []bool{true, false} {
+		stuck := newEntrySink(honourCtx)
+		logger, err := NewAsync(stuck, 4, telemetry.Nop(),
+			WithBatchSize(1), WithDrainTimeout(50*time.Millisecond))
+		if err != nil {
+			t.Fatal(err)
+		}
+		logger.Log(Record{DecisionID: "b"})
+		<-stuck.entered // the record is in the sink, so the outcome no longer depends on scheduling
+		start := time.Now()
+		err = logger.Close()
+		if err == nil {
+			t.Fatalf("honourCtx=%v: Close hid a sink that never drained", honourCtx)
+		}
+		if elapsed := time.Since(start); elapsed > 2*time.Second {
+			t.Fatalf("honourCtx=%v: Close waited %s for a stuck sink", honourCtx, elapsed)
+		}
+		if again := logger.Close(); again == nil || again.Error() != err.Error() {
+			t.Fatalf("honourCtx=%v: a second Close returned %v, want %v", honourCtx, again, err)
+		}
+		close(stuck.release)
+	}
+}
+
+// TestCloseReportsRecordsLostWhileDraining pins that a sink failure during the
+// drain is an error from Close, not only a counter.
+func TestCloseReportsRecordsLostWhileDraining(t *testing.T) {
+	sink := &recordingSink{err: errors.New("audit store unavailable")}
+	logger, err := NewAsync(sink, 8, telemetry.Nop(), WithBatchSize(8), WithFlushInterval(time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
-	stuck.Log(Record{DecisionID: "b"})
-	start := time.Now()
-	if err := stuck.Close(); err == nil {
-		t.Fatal("Close hid a sink that never drained")
+	for index := 0; index < 3; index++ {
+		logger.Log(Record{DecisionID: "d"})
 	}
-	if elapsed := time.Since(start); elapsed > 2*time.Second {
-		t.Fatalf("Close waited %s for a stuck sink", elapsed)
+	err = logger.Close()
+	if err == nil || !strings.Contains(err.Error(), "3 records") {
+		t.Fatalf("Close returned %v, want an error naming the 3 lost records", err)
 	}
+	if logger.Dropped() != 3 {
+		t.Fatalf("dropped %d, want 3", logger.Dropped())
+	}
+}
+
+// TestDrainWriteGetsOnlyTheRemainingDeadline pins that a write's timeout comes
+// from the drain deadline, not a fresh drainTimeout.
+func TestDrainWriteGetsOnlyTheRemainingDeadline(t *testing.T) {
+	const drain = 200 * time.Millisecond
+	sink := newEntrySink(true)
+	logger, err := NewAsync(sink, 4, telemetry.Nop(), WithBatchSize(1), WithDrainTimeout(drain))
+	if err != nil {
+		t.Fatal(err)
+	}
+	logger.Log(Record{DecisionID: "a"})
+	<-sink.entered
+	closeErr := make(chan error, 1)
+	go func() { closeErr <- logger.Close() }()
+	// The in-flight write is cut short at the drain deadline.
+	select {
+	case err := <-closeErr:
+		if err == nil {
+			t.Fatal("Close reported no loss though the write was cut short")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close did not return")
+	}
+	if logger.Dropped() == 0 {
+		// The cancelled write is counted by the writer goroutine; wait for it.
+		<-logger.stopped
+		if logger.Dropped() == 0 {
+			t.Fatal("the cut-short record was not counted as dropped")
+		}
+	}
+	close(sink.release)
+}
+
+// TestLogAfterCloseIsACountedDrop pins that logging into a closed logger is a
+// drop, never a send on a closed channel. Run it with -race.
+func TestLogAfterCloseIsACountedDrop(t *testing.T) {
+	counter := &countingMetrics{}
+	sink := &recordingSink{}
+	logger, err := NewAsync(sink, 4, counter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := logger.Close(); err != nil {
+		t.Fatal(err)
+	}
+	logger.Log(Record{DecisionID: "late"})
+	if logger.Dropped() != 1 || counter.value(telemetry.MetricAuditDropped) != 1 {
+		t.Fatalf("dropped %d, counter %v; want a single counted drop",
+			logger.Dropped(), counter.value(telemetry.MetricAuditDropped))
+	}
+	if len(sink.written()) != 0 {
+		t.Fatal("a record logged after Close reached the sink")
+	}
+
+	// Concurrent Log racing Close must neither panic nor race.
+	racing, err := NewAsync(&recordingSink{}, 4, telemetry.Nop())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for worker := 0; worker < 8; worker++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for index := 0; index < 200; index++ {
+				racing.Log(Record{DecisionID: "r"})
+			}
+		}()
+	}
+	_ = racing.Close()
+	wg.Wait()
+	racing.Log(Record{DecisionID: "after"})
 }
 
 func TestAsyncConstructionIsChecked(t *testing.T) {

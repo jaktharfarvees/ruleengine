@@ -160,8 +160,8 @@ func NewResolverWithTracer(
 		if err := manifest.Validate(); err != nil {
 			return nil, fmt.Errorf("dataset manifest %q: %w", name, err)
 		}
-		if manifest.Dataset != name {
-			return nil, fmt.Errorf("dataset manifest keyed %q declares %q", name, manifest.Dataset)
+		if manifest.DatasetID != name {
+			return nil, fmt.Errorf("dataset manifest keyed %q declares %q", name, manifest.DatasetID)
 		}
 		copied[name] = manifest
 	}

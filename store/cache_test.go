@@ -93,10 +93,10 @@ func TestSnapshotArtifactsStatsAndFreshness(t *testing.T) {
 			Name: "input", Domain: "leave", DataType: registry.DataString, OwnerService: "leave", Status: "active", Role: registry.RoleInput,
 		}},
 		Manifests: []dataset.Manifest{{
-			Dataset: "leave.items", OwnerService: "leave", Domain: "leave", Grain: "one row", TenantScoped: true,
+			DatasetID: "leave.items", SourceService: "leave", Domain: "leave", Grain: "one row", TenantScoped: true,
 			Status: dataset.Published, Version: "1.0.0", PublishedAt: january, MaxWindowDays: 1,
-			Aggregates: []dataset.AggregateFn{dataset.AggregateCount},
-			Columns:    []dataset.Column{{Name: "id", Type: registry.DataString, Filterable: true}},
+			AllowedAggregates: []dataset.AggregateFn{dataset.AggregateCount},
+			Columns:           []dataset.Column{{Name: "id", Type: registry.DataString, Filterable: true}},
 		}},
 		Hierarchy: HierarchyBundle{
 			Types: []hierarchy.Type{{TypeID: "root", TypeName: "Root", Tenant: "T1", Status: "ACTIVE"}},
@@ -111,7 +111,7 @@ func TestSnapshotArtifactsStatsAndFreshness(t *testing.T) {
 		t.Fatal("Registry returned nil")
 	}
 	manifest, found := cache.Manifest("leave.items")
-	if !found || manifest.Dataset != "leave.items" {
+	if !found || manifest.DatasetID != "leave.items" {
 		t.Fatalf("Manifest = %#v, %v", manifest, found)
 	}
 	manifest.Columns[0].Name = "mutated"

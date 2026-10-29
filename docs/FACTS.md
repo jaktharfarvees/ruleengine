@@ -391,7 +391,7 @@ offers**.
 
 Two of those are worth spelling out:
 
-- It builds an untenanted query, via `dataset.UntenantedCopy`, and requires you
+- It builds an untenanted query, via a helper internal to the dataset module, and requires you
   to reject it. Refusing proves you *look* for the predicate; the isolation
   check proves you *apply* it, by running the same query against a store
   holding one tenant's rows and then two.

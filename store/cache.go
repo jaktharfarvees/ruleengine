@@ -25,6 +25,7 @@ type Cache struct {
 	lastSuccess atomic.Int64
 	metrics     telemetry.Metrics
 	clock       Clock
+	ruleCheck   func(rule.RuleDefinition) error
 }
 
 // Option configures a Cache.
@@ -46,6 +47,15 @@ func WithClock(value Clock) Option {
 			cache.clock = value
 		}
 	}
+}
+
+// WithRuleCheck rejects any bundle containing a rule check returns an error
+// for, before anything is published. The cache cannot know which engine will
+// evaluate its rules, so the owner supplies that judgement here: a rule that
+// names an engine other than the configured one would otherwise load cleanly
+// and fail only when it is selected for a decision.
+func WithRuleCheck(check func(rule.RuleDefinition) error) Option {
+	return func(cache *Cache) { cache.ruleCheck = check }
 }
 
 // NewCache constructs an empty cache.
@@ -74,6 +84,14 @@ func (c *Cache) Replace(bundle Bundle) error {
 	loadedAt := bundle.LoadedAt
 	if loadedAt.IsZero() {
 		loadedAt = c.clock.Now()
+	}
+	if c.ruleCheck != nil {
+		for index := range bundle.Rules {
+			if err := c.ruleCheck(bundle.Rules[index]); err != nil {
+				c.observeStaleness()
+				return fmt.Errorf("validate rule at index %d: %w", index, err)
+			}
+		}
 	}
 	snapshot, err := newSnapshot(bundle, loadedAt)
 	if err != nil {
