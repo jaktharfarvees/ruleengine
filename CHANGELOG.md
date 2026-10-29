@@ -165,6 +165,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   superseded fixed-precedence vocabulary.
 - Benchmark baseline with a regression gate, and CI jobs for `govulncheck` and
   benchmark comparison.
+- `pool`: a tenant engine pool. `pool.New(factory, opts...)` creates, caches,
+  warms and evicts one engine per tenant, with build-once-under-concurrency,
+  typed `*BuildError` failures remembered for a short backoff, idle and
+  least-recently-used eviction, an opt-in janitor, and a `Close` that never
+  closes an engine under a running `Evaluate`. See ADR 0012.
+- `pool.NoCloseLogger`, which lets one decision logger be shared by every
+  tenant's engine without an evicted engine closing it.
+- `Engine.Tenant()`, which reports the tenant an engine was configured for.
+- Pool metrics in `telemetry`: `ruleengine_pool_hits_total`,
+  `ruleengine_pool_misses_total`, `ruleengine_pool_builds_total`,
+  `ruleengine_pool_build_failures_total`, `ruleengine_pool_evictions_total`
+  (label `reason`), `ruleengine_pool_engines_created_total` and
+  `ruleengine_pool_engines_closed_total`. None carries a tenant label.
 
 ### Changed
 

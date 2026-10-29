@@ -1,0 +1,7 @@
+************************************* Invoked: Wed Oct 28 16:33:44 2026
+[0] Arguments: C:\Users\earrow\AppData\Local\Temp\WinGet\MSYS2.MSYS2.20260927\msys2-x86_64-20260927.exe, install, --confirm-command, --root, C:\msys64
+[23] Operations sanity check succeeded.
+[230] Using metadata cache from "C:/Users/earrow/AppData/Local/cache\\qt-installer-framework\\d75f1c19-3379-3717-ae8d-1404b51494a9"
+[258] Found 0 cached items.
+[301] Loaded control script ":/metadata/installer-config/control_js"
+[313] TargetDirectoryInUse : Error : The directory you selected already exists and contains an installation. Choose a different target for installation.

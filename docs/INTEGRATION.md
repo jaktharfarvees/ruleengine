@@ -312,6 +312,23 @@ enforcing, so a rollback is a config change.
 Enforce per check, not per service. Eligibility can be enforced while balance
 validation is still shadowed.
 
+## Using the pool
+
+A service that decides for many tenants keeps one `pool.Pool`, not a map of
+engines. The factory is yours: it chooses where a tenant's rules and hierarchy
+come from, and returns an engine that has a loader and `Config.Tenant` equal to
+the requested tenant. The pool calls `Reload`, then `Start`, then checks `Ready`
+before it publishes the engine.
+
+- Call `Warm` at start-up and when a `tenant.created` event arrives.
+- Call `For(ctx, tenantID)` on the request path and `Get(tenantID)` inside a
+  database transaction, where building would mean I/O.
+- Call `Evict(tenantID)` when a tenant is deleted.
+- Wrap a decision logger shared by every tenant in `pool.NoCloseLogger`, close
+  it yourself once, after `Pool.Close` returns.
+- A handle from the pool returns `pool.ErrEngineClosed` after its engine was
+  evicted; ask the pool for the tenant again.
+
 ## Testing your integration
 
 ```go

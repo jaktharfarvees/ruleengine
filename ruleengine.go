@@ -207,6 +207,16 @@ func (e *Engine) Ready() error {
 	return nil
 }
 
+// Tenant returns the tenant this engine was configured for, which is fixed for
+// its lifetime. A caller that builds engines for many tenants uses it to check
+// that the engine it received is the one it asked for.
+func (e *Engine) Tenant() string {
+	if e == nil {
+		return ""
+	}
+	return e.config.Tenant
+}
+
 // Stats reports what the engine currently holds, for an operational endpoint.
 func (e *Engine) Stats() store.Stats {
 	if runtime := e.runtimeSnapshot(); runtime != nil && runtime.store != nil {

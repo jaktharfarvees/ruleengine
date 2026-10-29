@@ -1375,6 +1375,29 @@ a tighter gate.
 
 Report a suspected vulnerability per `SECURITY.md`. Do not open a public issue.
 
+## Engine pool
+
+One `Engine` serves one tenant. A service that serves many tenants uses the
+`pool` package rather than a hand-built map of engines, so tenants can be
+onboarded without a restart:
+
+```go
+tenants, _ := pool.New(func(ctx context.Context, tenantID string) (*ruleengine.Engine, error) {
+    return ruleengine.New(configFor(tenantID),
+        ruleengine.WithLoader(loaderFor(tenantID)),
+        ruleengine.WithDecisionLogger(pool.NoCloseLogger(audit)))
+}, pool.WithIdleTTL(30*time.Minute), pool.WithMaxTenants(500))
+defer tenants.Close(ctx)
+
+engine, err := tenants.For(ctx, tenantID) // builds once, then cached
+decision, err := engine.Evaluate(ctx, request)
+```
+
+`For` builds on first use, `Get` only looks up (no I/O, safe inside a database
+transaction), and `Warm` builds ahead of time. A failed tenant is remembered for
+a short backoff and never affects another. The pool closes an engine only when
+no `Evaluate` on it is running. See `pool` and ADR 0012.
+
 ## Project layout
 
 | Package | Responsibility |

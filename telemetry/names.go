@@ -99,3 +99,27 @@ const (
 	AttrField      = "rule.field"
 	AttrFactKind   = "rule.fact_kind"
 )
+
+// Engine pool metrics. None carries a tenant label: a tenant identifier is
+// unbounded cardinality, and the pool's behaviour is the same for every
+// tenant, so a total says everything an alert needs.
+const (
+	// MetricPoolHits counts lookups served by an engine already in the pool.
+	// No labels.
+	MetricPoolHits = "ruleengine_pool_hits_total"
+	// MetricPoolMisses counts lookups that found no engine in the pool. No
+	// labels.
+	MetricPoolMisses = "ruleengine_pool_misses_total"
+	// MetricPoolBuilds counts attempts to build an engine. No labels.
+	MetricPoolBuilds = "ruleengine_pool_builds_total"
+	// MetricPoolBuildFailures counts build attempts that failed. No labels.
+	MetricPoolBuildFailures = "ruleengine_pool_build_failures_total"
+	// MetricPoolEvictions counts engines removed from the pool. Labels: reason
+	// ("idle", "capacity", "explicit" or "close").
+	MetricPoolEvictions = "ruleengine_pool_evictions_total"
+	// MetricPoolEnginesCreated counts engines published into the pool. The pool
+	// size is this minus MetricPoolEnginesClosed. No labels.
+	MetricPoolEnginesCreated = "ruleengine_pool_engines_created_total"
+	// MetricPoolEnginesClosed counts engines the pool has closed. No labels.
+	MetricPoolEnginesClosed = "ruleengine_pool_engines_closed_total"
+)
