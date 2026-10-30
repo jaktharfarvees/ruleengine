@@ -166,7 +166,22 @@ func (s *Snapshot) Empty(tenant string) bool {
 }
 
 // Path returns an independent copy of the precomputed path for a node.
+//
+// The copy is the one allocation Path makes and it is deliberate: resolution
+// returns the path on its Result and the pipeline puts it on the Decision, so a
+// caller holding either could otherwise rewrite a path every concurrent
+// decision reads.
 func (s *Snapshot) Path(tenant, nodeID string) ([]PathEntry, error) {
+	result, err := s.path(tenant, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	return append([]PathEntry(nil), result...), nil
+}
+
+// path is Path without the copy, for lookups inside this package that only
+// read the entries and return none of them.
+func (s *Snapshot) path(tenant, nodeID string) ([]PathEntry, error) {
 	if s == nil {
 		return nil, fmt.Errorf("hierarchy snapshot is unavailable")
 	}
@@ -174,7 +189,7 @@ func (s *Snapshot) Path(tenant, nodeID string) ([]PathEntry, error) {
 	if !exists {
 		return nil, fmt.Errorf("tenant %q hierarchy node %q is unknown", tenant, nodeID)
 	}
-	return append([]PathEntry(nil), result...), nil
+	return result, nil
 }
 
 // Node returns a hierarchy node by tenant and identifier.

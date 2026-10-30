@@ -53,6 +53,8 @@ func Resolve(input Input, definitions []*rule.RuleDefinition, snapshot *hierarch
 		sortCandidates(result.Candidates)
 		return result
 	}
+	// Path's copy is this function's second allocation and is required: the
+	// path is returned on Result, and from there reaches the caller's Decision.
 	path, _ := snapshot.Path(input.Tenant, input.NodeID)
 	result.Path = path
 

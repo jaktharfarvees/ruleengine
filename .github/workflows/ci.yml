@@ -14,7 +14,7 @@ jobs:
   test:
     strategy:
       matrix:
-        go: ['1.26.9', '1.27.2']
+        go: ['1.26.10', '1.27.3']
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

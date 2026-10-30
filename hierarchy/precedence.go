@@ -22,7 +22,7 @@ func (s *Snapshot) DerivePrecedence(tenant string, anchor rule.Anchor) (DerivedP
 		if !exists {
 			return DerivedPrecedence{}, fmt.Errorf("tenant %q anchor type %q is unknown", tenant, node.TypeID)
 		}
-		path, err := s.Path(tenant, node.NodeID)
+		path, err := s.path(tenant, node.NodeID)
 		if err != nil {
 			return DerivedPrecedence{}, err
 		}

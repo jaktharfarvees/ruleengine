@@ -7,6 +7,10 @@ import (
 )
 
 // Engine evaluates already-resolved rule logic without I/O or clock access.
+//
+// The logic passed to Evaluate shares its rows and maps with the published rule
+// snapshot, which concurrent decisions read at the same time. An Engine must
+// treat it as read-only and copy anything it returns in Output.
 type Engine interface {
 	Name() string
 	Evaluate(ctx context.Context, logic rule.RuleLogic, input Input) (Output, error)

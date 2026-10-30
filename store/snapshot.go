@@ -222,16 +222,24 @@ func (s *Snapshot) DefaultPolicy(tenant string, family rule.Family) (rule.Defaul
 // Collapsing versions here is what keeps a version bump from becoming a
 // precedence tie; see collapse.
 func (s *Snapshot) Candidates(tenant, domain, ruleSet, name string, at time.Time) []*rule.RuleDefinition {
+	return cloneDefinitions(s.candidates(tenant, domain, ruleSet, name, at))
+}
+
+// candidates is Candidates without the deep copy, for version selection on the
+// decision path. The slice is new but the rules are the snapshot's own, which
+// newSnapshot copied from the bundle and nothing mutates afterwards; callers
+// must only read them.
+func (s *Snapshot) candidates(tenant, domain, ruleSet, name string, at time.Time) []*rule.RuleDefinition {
 	if s == nil || tenant == "" || domain == "" || ruleSet == "" || name == "" || at.IsZero() {
 		return nil
 	}
-	return cloneDefinitions(collapse(s.catalog[catalogKey{tenant: tenant, domain: domain, ruleSet: ruleSet, name: name}], at))
+	return collapse(s.catalog[catalogKey{tenant: tenant, domain: domain, ruleSet: ruleSet, name: name}], at)
 }
 
-// candidatesForKey is Candidates addressed by rule key, for version selection.
+// candidatesForKey is candidates addressed by rule key, for version selection.
 func (s *Snapshot) candidatesForKey(tenant string, key rule.RuleKey, at time.Time) []*rule.RuleDefinition {
 	family := key.Family()
-	return s.Candidates(tenant, family.Domain, family.RuleSet, family.Name, at)
+	return s.candidates(tenant, family.Domain, family.RuleSet, family.Name, at)
 }
 
 // Versions returns every cached version for a tenant and rule key in newest
@@ -251,10 +259,16 @@ func (s *Snapshot) Versions(tenant string, key rule.RuleKey) []*rule.RuleDefinit
 // evaluation goes through VersionResolver, which refuses a version that is not
 // evaluable even when a pin names it.
 func (s *Snapshot) Version(tenant string, key rule.RuleKey, version string) []*rule.RuleDefinition {
+	return cloneDefinitions(s.version(tenant, key, version))
+}
+
+// version is Version without the deep copy, for pinned version selection. Both
+// the slice and the rules are the snapshot's own; callers must only read them.
+func (s *Snapshot) version(tenant string, key rule.RuleKey, version string) []*rule.RuleDefinition {
 	if s == nil {
 		return nil
 	}
-	return cloneDefinitions(s.byVersion[versionKey{tenant: tenant, key: key, version: version}])
+	return s.byVersion[versionKey{tenant: tenant, key: key, version: version}]
 }
 
 func cloneDefinitions(source []*rule.RuleDefinition) []*rule.RuleDefinition {

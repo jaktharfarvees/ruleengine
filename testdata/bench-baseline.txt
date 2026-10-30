@@ -1,136 +1,225 @@
+goos: windows
+goarch: amd64
+pkg: github.com/arrowhr/ruleengine
+cpu: Intel(R) Core(TM) i5-8365U CPU @ 1.60GHz
+BenchmarkPipeline/datasetFacts=0-8   	    5599	    224684 ns/op	   60111 B/op	     819 allocs/op
+BenchmarkPipeline/datasetFacts=0-8   	    6216	    220432 ns/op	   60113 B/op	     819 allocs/op
+BenchmarkPipeline/datasetFacts=0-8   	    5008	    231559 ns/op	   60106 B/op	     819 allocs/op
+BenchmarkPipeline/datasetFacts=0-8   	    4881	    258871 ns/op	   60098 B/op	     819 allocs/op
+BenchmarkPipeline/datasetFacts=0-8   	    5360	    268515 ns/op	   60110 B/op	     819 allocs/op
+BenchmarkPipeline/datasetFacts=0-8   	    4942	    224538 ns/op	   60104 B/op	     819 allocs/op
+BenchmarkPipeline/datasetFacts=1-8   	    3705	    361565 ns/op	   76386 B/op	    1244 allocs/op
+BenchmarkPipeline/datasetFacts=1-8   	    2827	    402151 ns/op	   76423 B/op	    1244 allocs/op
+BenchmarkPipeline/datasetFacts=1-8   	    2947	    382188 ns/op	   76425 B/op	    1244 allocs/op
+BenchmarkPipeline/datasetFacts=1-8   	    3184	    392349 ns/op	   76422 B/op	    1244 allocs/op
+BenchmarkPipeline/datasetFacts=1-8   	    3458	    422729 ns/op	   76438 B/op	    1244 allocs/op
+BenchmarkPipeline/datasetFacts=1-8   	    2583	    389438 ns/op	   76414 B/op	    1244 allocs/op
+BenchmarkPipeline/datasetFacts=5-8   	    2116	    664264 ns/op	  139135 B/op	    2921 allocs/op
+BenchmarkPipeline/datasetFacts=5-8   	    1812	    713184 ns/op	  139155 B/op	    2921 allocs/op
+BenchmarkPipeline/datasetFacts=5-8   	    1994	    639362 ns/op	  139159 B/op	    2921 allocs/op
+BenchmarkPipeline/datasetFacts=5-8   	    1754	    668595 ns/op	  139140 B/op	    2921 allocs/op
+BenchmarkPipeline/datasetFacts=5-8   	    1718	    704368 ns/op	  139181 B/op	    2921 allocs/op
+BenchmarkPipeline/datasetFacts=5-8   	    1675	    719749 ns/op	  139111 B/op	    2920 allocs/op
+BenchmarkPipelineEvaluateAll-8       	     873	   1455147 ns/op	  283290 B/op	    5061 allocs/op
+BenchmarkPipelineEvaluateAll-8       	    1014	   1185160 ns/op	  283276 B/op	    5061 allocs/op
+BenchmarkPipelineEvaluateAll-8       	    1078	   1177150 ns/op	  283247 B/op	    5060 allocs/op
+BenchmarkPipelineEvaluateAll-8       	    1042	   1135933 ns/op	  283288 B/op	    5061 allocs/op
+BenchmarkPipelineEvaluateAll-8       	    1101	   1149878 ns/op	  283285 B/op	    5061 allocs/op
+BenchmarkPipelineEvaluateAll-8       	     960	   1513355 ns/op	  283265 B/op	    5060 allocs/op
+BenchmarkPipelineValidationModes/strict-8         	    4422	    371541 ns/op	   60100 B/op	     819 allocs/op
+BenchmarkPipelineValidationModes/strict-8         	    3301	    305680 ns/op	   60107 B/op	     819 allocs/op
+BenchmarkPipelineValidationModes/strict-8         	    4303	    327448 ns/op	   60107 B/op	     819 allocs/op
+BenchmarkPipelineValidationModes/strict-8         	    3182	    365134 ns/op	   60121 B/op	     820 allocs/op
+BenchmarkPipelineValidationModes/strict-8         	    3213	    321661 ns/op	   60124 B/op	     820 allocs/op
+BenchmarkPipelineValidationModes/strict-8         	    4125	    298551 ns/op	   60118 B/op	     820 allocs/op
+BenchmarkPipelineValidationModes/schemaOnly-8     	    4054	    311391 ns/op	   59957 B/op	     812 allocs/op
+BenchmarkPipelineValidationModes/schemaOnly-8     	    4446	    303636 ns/op	   60000 B/op	     813 allocs/op
+BenchmarkPipelineValidationModes/schemaOnly-8     	    3704	    330188 ns/op	   59972 B/op	     812 allocs/op
+BenchmarkPipelineValidationModes/schemaOnly-8     	    3729	    359623 ns/op	   59984 B/op	     813 allocs/op
+BenchmarkPipelineValidationModes/schemaOnly-8     	    3849	    333988 ns/op	   59966 B/op	     812 allocs/op
+BenchmarkPipelineValidationModes/schemaOnly-8     	    4269	    314107 ns/op	   59976 B/op	     812 allocs/op
+BenchmarkPipelineValidationModes/off-8            	   35193	     38434 ns/op	    7139 B/op	      92 allocs/op
+BenchmarkPipelineValidationModes/off-8            	   35538	     31196 ns/op	    7139 B/op	      92 allocs/op
+BenchmarkPipelineValidationModes/off-8            	   51986	     24302 ns/op	    7139 B/op	      92 allocs/op
+BenchmarkPipelineValidationModes/off-8            	   45520	     22825 ns/op	    7139 B/op	      92 allocs/op
+BenchmarkPipelineValidationModes/off-8            	   57602	     22160 ns/op	    7139 B/op	      92 allocs/op
+BenchmarkPipelineValidationModes/off-8            	   46346	     26594 ns/op	    7139 B/op	      92 allocs/op
 PASS
-ok  	github.com/arrowhr/ruleengine	0.091s
+ok  	github.com/arrowhr/ruleengine	62.221s
 PASS
-ok  	github.com/arrowhr/ruleengine/audit	0.256s
+ok  	github.com/arrowhr/ruleengine/audit	0.177s
 PASS
-ok  	github.com/arrowhr/ruleengine/authz	0.256s
+ok  	github.com/arrowhr/ruleengine/authz	0.185s
 PASS
-ok  	github.com/arrowhr/ruleengine/cmd/rulelint	0.252s
+ok  	github.com/arrowhr/ruleengine/cmd/rulelint	0.199s
 PASS
-ok  	github.com/arrowhr/ruleengine/cmd/ruleplay	0.306s
+ok  	github.com/arrowhr/ruleengine/cmd/ruleplay	0.244s
+?   	github.com/arrowhr/ruleengine/cmd/schemacompat	[no test files]
 PASS
-ok  	github.com/arrowhr/ruleengine/contextbuilder	0.207s
+ok  	github.com/arrowhr/ruleengine/contextbuilder	0.220s
 PASS
-ok  	github.com/arrowhr/ruleengine/dataset	0.276s
+ok  	github.com/arrowhr/ruleengine/dataset	0.257s
 PASS
-ok  	github.com/arrowhr/ruleengine/engine	0.334s
+ok  	github.com/arrowhr/ruleengine/dataset/datasettest	0.190s
+?   	github.com/arrowhr/ruleengine/dataset/internal/untenanted	[no test files]
+PASS
+ok  	github.com/arrowhr/ruleengine/engine	0.217s
 goos: windows
 goarch: amd64
 pkg: github.com/arrowhr/ruleengine/engine/decisiontable
 cpu: Intel(R) Core(TM) i5-8365U CPU @ 1.60GHz
-BenchmarkEvaluate/rows=10/trace=false-8         	   47787	     22698 ns/op	    2600 B/op	      96 allocs/op
-BenchmarkEvaluate/rows=10/trace=false-8         	   50370	     22915 ns/op	    2600 B/op	      96 allocs/op
-BenchmarkEvaluate/rows=10/trace=false-8         	   58330	     21650 ns/op	    2600 B/op	      96 allocs/op
-BenchmarkEvaluate/rows=10/trace=false-8         	   39987	     30282 ns/op	    2600 B/op	      96 allocs/op
-BenchmarkEvaluate/rows=10/trace=false-8         	   37131	     32075 ns/op	    2600 B/op	      96 allocs/op
-BenchmarkEvaluate/rows=10/trace=false-8         	   38496	     29423 ns/op	    2600 B/op	      96 allocs/op
-BenchmarkEvaluate/rows=10/trace=true-8          	   63700	     25778 ns/op	    3744 B/op	     108 allocs/op
-BenchmarkEvaluate/rows=10/trace=true-8          	   44156	     31672 ns/op	    3744 B/op	     108 allocs/op
-BenchmarkEvaluate/rows=10/trace=true-8          	   45548	     25941 ns/op	    3744 B/op	     108 allocs/op
-BenchmarkEvaluate/rows=10/trace=true-8          	   43762	     26587 ns/op	    3744 B/op	     108 allocs/op
-BenchmarkEvaluate/rows=10/trace=true-8          	   27949	     40029 ns/op	    3744 B/op	     108 allocs/op
-BenchmarkEvaluate/rows=10/trace=true-8          	   34650	     30784 ns/op	    3744 B/op	     108 allocs/op
-BenchmarkEvaluate/rows=100/trace=false-8        	    4710	    222941 ns/op	   22136 B/op	     906 allocs/op
-BenchmarkEvaluate/rows=100/trace=false-8        	    9133	    225421 ns/op	   22136 B/op	     906 allocs/op
-BenchmarkEvaluate/rows=100/trace=false-8        	    8811	    214564 ns/op	   22136 B/op	     906 allocs/op
-BenchmarkEvaluate/rows=100/trace=false-8        	    5926	    205087 ns/op	   22136 B/op	     906 allocs/op
-BenchmarkEvaluate/rows=100/trace=false-8        	    4845	    262257 ns/op	   22136 B/op	     906 allocs/op
-BenchmarkEvaluate/rows=100/trace=false-8        	    5692	    220283 ns/op	   22136 B/op	     906 allocs/op
-BenchmarkEvaluate/rows=100/trace=true-8         	    6320	    255517 ns/op	   33424 B/op	    1008 allocs/op
-BenchmarkEvaluate/rows=100/trace=true-8         	    4274	    316143 ns/op	   33424 B/op	    1008 allocs/op
-BenchmarkEvaluate/rows=100/trace=true-8         	    5094	    244473 ns/op	   33424 B/op	    1008 allocs/op
-BenchmarkEvaluate/rows=100/trace=true-8         	    3909	    303848 ns/op	   33424 B/op	    1008 allocs/op
-BenchmarkEvaluate/rows=100/trace=true-8         	    4418	    267378 ns/op	   33424 B/op	    1008 allocs/op
-BenchmarkEvaluate/rows=100/trace=true-8         	    4006	    288896 ns/op	   33424 B/op	    1008 allocs/op
+BenchmarkEvaluate/rows=10/trace=false-8         	   90135	     15412 ns/op	    2600 B/op	      96 allocs/op
+BenchmarkEvaluate/rows=10/trace=false-8         	   78219	     13393 ns/op	    2600 B/op	      96 allocs/op
+BenchmarkEvaluate/rows=10/trace=false-8         	   98590	     12979 ns/op	    2600 B/op	      96 allocs/op
+BenchmarkEvaluate/rows=10/trace=false-8         	   88315	     13934 ns/op	    2600 B/op	      96 allocs/op
+BenchmarkEvaluate/rows=10/trace=false-8         	   76434	     14324 ns/op	    2600 B/op	      96 allocs/op
+BenchmarkEvaluate/rows=10/trace=false-8         	   81332	     13724 ns/op	    2600 B/op	      96 allocs/op
+BenchmarkEvaluate/rows=10/trace=true-8          	   75218	     17967 ns/op	    3744 B/op	     108 allocs/op
+BenchmarkEvaluate/rows=10/trace=true-8          	   77787	     16787 ns/op	    3744 B/op	     108 allocs/op
+BenchmarkEvaluate/rows=10/trace=true-8          	   76417	     30351 ns/op	    3744 B/op	     108 allocs/op
+BenchmarkEvaluate/rows=10/trace=true-8          	   26524	     42417 ns/op	    3744 B/op	     108 allocs/op
+BenchmarkEvaluate/rows=10/trace=true-8          	   13202	     77052 ns/op	    3744 B/op	     108 allocs/op
+BenchmarkEvaluate/rows=10/trace=true-8          	   45037	     24143 ns/op	    3744 B/op	     108 allocs/op
+BenchmarkEvaluate/rows=100/trace=false-8        	    8815	    148050 ns/op	   22136 B/op	     906 allocs/op
+BenchmarkEvaluate/rows=100/trace=false-8        	    9429	    116286 ns/op	   22136 B/op	     906 allocs/op
+BenchmarkEvaluate/rows=100/trace=false-8        	    9966	    119089 ns/op	   22136 B/op	     906 allocs/op
+BenchmarkEvaluate/rows=100/trace=false-8        	    9088	    151137 ns/op	   22136 B/op	     906 allocs/op
+BenchmarkEvaluate/rows=100/trace=false-8        	    9423	    134972 ns/op	   22136 B/op	     906 allocs/op
+BenchmarkEvaluate/rows=100/trace=false-8        	   10510	    108741 ns/op	   22136 B/op	     906 allocs/op
+BenchmarkEvaluate/rows=100/trace=true-8         	   10000	    101842 ns/op	   33424 B/op	    1008 allocs/op
+BenchmarkEvaluate/rows=100/trace=true-8         	   10000	    131341 ns/op	   33424 B/op	    1008 allocs/op
+BenchmarkEvaluate/rows=100/trace=true-8         	   10000	    114749 ns/op	   33424 B/op	    1008 allocs/op
+BenchmarkEvaluate/rows=100/trace=true-8         	    8934	    129486 ns/op	   33424 B/op	    1008 allocs/op
+BenchmarkEvaluate/rows=100/trace=true-8         	   10000	    146137 ns/op	   33424 B/op	    1008 allocs/op
+BenchmarkEvaluate/rows=100/trace=true-8         	   10152	    114431 ns/op	   33424 B/op	    1008 allocs/op
 PASS
-ok  	github.com/arrowhr/ruleengine/engine/decisiontable	31.402s
+ok  	github.com/arrowhr/ruleengine/engine/decisiontable	31.086s
 PASS
-ok  	github.com/arrowhr/ruleengine/engine/testengine	0.417s
+ok  	github.com/arrowhr/ruleengine/engine/testengine	0.203s
 PASS
-ok  	github.com/arrowhr/ruleengine/examples/leaveservice	0.381s
+ok  	github.com/arrowhr/ruleengine/examples/leaveservice	0.214s
 PASS
-ok  	github.com/arrowhr/ruleengine/fact	0.400s
+ok  	github.com/arrowhr/ruleengine/fact	0.298s
 goos: windows
 goarch: amd64
 pkg: github.com/arrowhr/ruleengine/hierarchy
 cpu: Intel(R) Core(TM) i5-8365U CPU @ 1.60GHz
-BenchmarkPath-8                  	12052080	       134.3 ns/op	       0 B/op	       0 allocs/op
-BenchmarkPath-8                  	10211240	       118.2 ns/op	       0 B/op	       0 allocs/op
-BenchmarkPath-8                  	11250148	       110.4 ns/op	       0 B/op	       0 allocs/op
-BenchmarkPath-8                  	15936296	       125.6 ns/op	       0 B/op	       0 allocs/op
-BenchmarkPath-8                  	 8638120	       127.9 ns/op	       0 B/op	       0 allocs/op
-BenchmarkPath-8                  	 8406492	       138.1 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCacheLoadDuringSwap/quiet-8         	1000000000	         1.185 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCacheLoadDuringSwap/quiet-8         	787023555	         1.372 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCacheLoadDuringSwap/quiet-8         	722421121	         1.984 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCacheLoadDuringSwap/quiet-8         	1000000000	         1.485 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCacheLoadDuringSwap/quiet-8         	1000000000	         1.549 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCacheLoadDuringSwap/quiet-8         	1000000000	         1.324 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCacheLoadDuringSwap/swapping-8      	223054172	         5.026 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCacheLoadDuringSwap/swapping-8      	230799589	         6.418 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCacheLoadDuringSwap/swapping-8      	244441700	         6.161 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCacheLoadDuringSwap/swapping-8      	257492660	         6.048 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCacheLoadDuringSwap/swapping-8      	218971548	         6.021 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCacheLoadDuringSwap/swapping-8      	201864045	         6.644 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPath-8                  	 2208747	       602.7 ns/op	     160 B/op	       1 allocs/op
+BenchmarkPath-8                  	 3346810	       368.2 ns/op	     160 B/op	       1 allocs/op
+BenchmarkPath-8                  	 3894837	       488.1 ns/op	     160 B/op	       1 allocs/op
+BenchmarkPath-8                  	 4073594	      1286 ns/op	     160 B/op	       1 allocs/op
+BenchmarkPath-8                  	 4582635	       252.9 ns/op	     160 B/op	       1 allocs/op
+BenchmarkPath-8                  	 3720722	       359.2 ns/op	     160 B/op	       1 allocs/op
+BenchmarkCacheLoadDuringSwap/quiet-8         	1000000000	         1.272 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/quiet-8         	1000000000	         0.8662 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/quiet-8         	1000000000	         0.7948 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/quiet-8         	1000000000	         0.6848 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/quiet-8         	1000000000	         0.5562 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/quiet-8         	1000000000	         0.5567 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/swapping-8      	429635389	         3.106 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/swapping-8      	407563425	         3.128 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/swapping-8      	459299200	         2.715 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/swapping-8      	386572282	         2.814 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/swapping-8      	460512404	         3.136 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCacheLoadDuringSwap/swapping-8      	379468238	         2.829 ns/op	       0 B/op	       0 allocs/op
 PASS
-ok  	github.com/arrowhr/ruleengine/hierarchy	34.032s
+ok  	github.com/arrowhr/ruleengine/hierarchy	31.305s
 PASS
-ok  	github.com/arrowhr/ruleengine/internal/clock	0.364s
+ok  	github.com/arrowhr/ruleengine/internal/clock	0.149s
 PASS
-ok  	github.com/arrowhr/ruleengine/internal/decimalx	0.475s
+ok  	github.com/arrowhr/ruleengine/internal/decimalx	0.167s
+?   	github.com/arrowhr/ruleengine/internal/deepcopy	[no test files]
 PASS
-ok  	github.com/arrowhr/ruleengine/internal/expr	0.334s
+ok  	github.com/arrowhr/ruleengine/internal/expr	0.183s
 PASS
-ok  	github.com/arrowhr/ruleengine/internal/urnkey	0.355s
+ok  	github.com/arrowhr/ruleengine/internal/schemacompat	0.177s
 PASS
-ok  	github.com/arrowhr/ruleengine/manifest	0.247s
+ok  	github.com/arrowhr/ruleengine/internal/urnkey	0.234s
 PASS
-ok  	github.com/arrowhr/ruleengine/registry	0.267s
+ok  	github.com/arrowhr/ruleengine/manifest	0.178s
+goos: windows
+goarch: amd64
+pkg: github.com/arrowhr/ruleengine/pool
+cpu: Intel(R) Core(TM) i5-8365U CPU @ 1.60GHz
+BenchmarkForHit-8           	18957854	        80.63 ns/op	       0 B/op	       0 allocs/op
+BenchmarkForHit-8           	15717873	        77.15 ns/op	       0 B/op	       0 allocs/op
+BenchmarkForHit-8           	18427008	        77.96 ns/op	       0 B/op	       0 allocs/op
+BenchmarkForHit-8           	17136295	        68.75 ns/op	       0 B/op	       0 allocs/op
+BenchmarkForHit-8           	16111317	        73.12 ns/op	       0 B/op	       0 allocs/op
+BenchmarkForHit-8           	15168214	        68.41 ns/op	       0 B/op	       0 allocs/op
+BenchmarkForHitParallel-8   	 4996173	       266.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkForHitParallel-8   	 4090959	       271.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkForHitParallel-8   	 4835386	       260.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkForHitParallel-8   	 4717418	       258.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkForHitParallel-8   	 4652215	       268.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkForHitParallel-8   	 4804621	       252.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGetHit-8           	16127514	        71.96 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGetHit-8           	22214184	        51.78 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGetHit-8           	22178071	        55.30 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGetHit-8           	22283956	        52.72 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGetHit-8           	20967033	        51.74 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGetHit-8           	20764550	        61.54 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/arrowhr/ruleengine/pool	25.788s
+PASS
+ok  	github.com/arrowhr/ruleengine/registry	0.176s
 goos: windows
 goarch: amd64
 pkg: github.com/arrowhr/ruleengine/resolve
 cpu: Intel(R) Core(TM) i5-8365U CPU @ 1.60GHz
-BenchmarkResolve/candidates=1-8         	 1000000	      1317 ns/op	     160 B/op	       1 allocs/op
-BenchmarkResolve/candidates=1-8         	 1252928	      1394 ns/op	     160 B/op	       1 allocs/op
-BenchmarkResolve/candidates=1-8         	  941914	      1321 ns/op	     160 B/op	       1 allocs/op
-BenchmarkResolve/candidates=1-8         	  760620	      1359 ns/op	     160 B/op	       1 allocs/op
-BenchmarkResolve/candidates=1-8         	  868922	      1463 ns/op	     160 B/op	       1 allocs/op
-BenchmarkResolve/candidates=1-8         	  803508	      1306 ns/op	     160 B/op	       1 allocs/op
-BenchmarkResolve/candidates=10-8        	   92220	     17118 ns/op	    2352 B/op	      10 allocs/op
-BenchmarkResolve/candidates=10-8        	   77696	     13803 ns/op	    2352 B/op	      10 allocs/op
-BenchmarkResolve/candidates=10-8        	   78145	     14433 ns/op	    2352 B/op	      10 allocs/op
-BenchmarkResolve/candidates=10-8        	  133509	     14851 ns/op	    2352 B/op	      10 allocs/op
-BenchmarkResolve/candidates=10-8        	   63236	     17150 ns/op	    2352 B/op	      10 allocs/op
-BenchmarkResolve/candidates=10-8        	   69505	     15587 ns/op	    2352 B/op	      10 allocs/op
-BenchmarkResolve/candidates=100-8       	    6404	    220160 ns/op	   24739 B/op	     101 allocs/op
-BenchmarkResolve/candidates=100-8       	    6654	    173913 ns/op	   24739 B/op	     101 allocs/op
-BenchmarkResolve/candidates=100-8       	   10000	    190641 ns/op	   24739 B/op	     101 allocs/op
-BenchmarkResolve/candidates=100-8       	    7731	    165504 ns/op	   24739 B/op	     101 allocs/op
-BenchmarkResolve/candidates=100-8       	    6232	    190429 ns/op	   24739 B/op	     101 allocs/op
-BenchmarkResolve/candidates=100-8       	    6836	    186573 ns/op	   24739 B/op	     101 allocs/op
+BenchmarkResolve/candidates=1-8         	 1678167	       647.3 ns/op	     464 B/op	       2 allocs/op
+BenchmarkResolve/candidates=1-8         	 1787614	       931.2 ns/op	     464 B/op	       2 allocs/op
+BenchmarkResolve/candidates=1-8         	 1918002	       796.5 ns/op	     464 B/op	       2 allocs/op
+BenchmarkResolve/candidates=1-8         	 1397046	       764.7 ns/op	     464 B/op	       2 allocs/op
+BenchmarkResolve/candidates=1-8         	 1271416	       827.1 ns/op	     464 B/op	       2 allocs/op
+BenchmarkResolve/candidates=1-8         	 1370173	       788.5 ns/op	     464 B/op	       2 allocs/op
+BenchmarkResolve/candidates=10-8        	  191059	      6453 ns/op	    2672 B/op	      11 allocs/op
+BenchmarkResolve/candidates=10-8        	  155580	      6816 ns/op	    2672 B/op	      11 allocs/op
+BenchmarkResolve/candidates=10-8        	  167168	      6058 ns/op	    2672 B/op	      11 allocs/op
+BenchmarkResolve/candidates=10-8        	  199406	      8235 ns/op	    2672 B/op	      11 allocs/op
+BenchmarkResolve/candidates=10-8        	  148053	      8384 ns/op	    2672 B/op	      11 allocs/op
+BenchmarkResolve/candidates=10-8        	  151126	      7398 ns/op	    2672 B/op	      11 allocs/op
+BenchmarkResolve/candidates=100-8       	   15130	     69402 ns/op	   25059 B/op	     102 allocs/op
+BenchmarkResolve/candidates=100-8       	   22179	     59971 ns/op	   25059 B/op	     102 allocs/op
+BenchmarkResolve/candidates=100-8       	   22558	     48816 ns/op	   25059 B/op	     102 allocs/op
+BenchmarkResolve/candidates=100-8       	   21646	     53774 ns/op	   25059 B/op	     102 allocs/op
+BenchmarkResolve/candidates=100-8       	   22897	     56083 ns/op	   25059 B/op	     102 allocs/op
+BenchmarkResolve/candidates=100-8       	   18435	     54883 ns/op	   25059 B/op	     102 allocs/op
 PASS
-ok  	github.com/arrowhr/ruleengine/resolve	27.852s
+ok  	github.com/arrowhr/ruleengine/resolve	31.866s
 PASS
-ok  	github.com/arrowhr/ruleengine/rule	0.429s
+ok  	github.com/arrowhr/ruleengine/rule	0.166s
 PASS
-ok  	github.com/arrowhr/ruleengine/ruletest	0.361s
+ok  	github.com/arrowhr/ruleengine/ruletest	0.179s
 PASS
-ok  	github.com/arrowhr/ruleengine/schema	0.325s
+ok  	github.com/arrowhr/ruleengine/schema	0.288s
 goos: windows
 goarch: amd64
 pkg: github.com/arrowhr/ruleengine/store
 cpu: Intel(R) Core(TM) i5-8365U CPU @ 1.60GHz
-BenchmarkCandidates-8   	 3837238	       335.8 ns/op	       8 B/op	       1 allocs/op
-BenchmarkCandidates-8   	 3342991	       366.9 ns/op	       8 B/op	       1 allocs/op
-BenchmarkCandidates-8   	 2599310	       394.4 ns/op	       8 B/op	       1 allocs/op
-BenchmarkCandidates-8   	 4021839	       303.9 ns/op	       8 B/op	       1 allocs/op
-BenchmarkCandidates-8   	 3292173	       340.5 ns/op	       8 B/op	       1 allocs/op
-BenchmarkCandidates-8   	 3270169	       375.1 ns/op	       8 B/op	       1 allocs/op
+BenchmarkCandidates-8        	  765003	      1380 ns/op	    1088 B/op	       8 allocs/op
+BenchmarkCandidates-8        	 1000000	      1267 ns/op	    1088 B/op	       8 allocs/op
+BenchmarkCandidates-8        	 1000000	      1481 ns/op	    1088 B/op	       8 allocs/op
+BenchmarkCandidates-8        	 1000000	      1555 ns/op	    1088 B/op	       8 allocs/op
+BenchmarkCandidates-8        	  816859	      1564 ns/op	    1088 B/op	       8 allocs/op
+BenchmarkCandidates-8        	 1000000	      1180 ns/op	    1088 B/op	       8 allocs/op
+BenchmarkResolveSnapshot/effective-8         	 1597174	       690.1 ns/op	     168 B/op	       5 allocs/op
+BenchmarkResolveSnapshot/effective-8         	 1321617	       922.3 ns/op	     168 B/op	       5 allocs/op
+BenchmarkResolveSnapshot/effective-8         	 1246176	       898.2 ns/op	     168 B/op	       5 allocs/op
+BenchmarkResolveSnapshot/effective-8         	 1000000	      1008 ns/op	     168 B/op	       5 allocs/op
+BenchmarkResolveSnapshot/effective-8         	 1000000	      1333 ns/op	     168 B/op	       5 allocs/op
+BenchmarkResolveSnapshot/effective-8         	  999600	      1236 ns/op	     168 B/op	       5 allocs/op
+BenchmarkResolveSnapshot/pinned-8            	 2256840	       595.8 ns/op	      96 B/op	       3 allocs/op
+BenchmarkResolveSnapshot/pinned-8            	 3466058	       307.5 ns/op	      96 B/op	       3 allocs/op
+BenchmarkResolveSnapshot/pinned-8            	 3550334	       306.5 ns/op	      96 B/op	       3 allocs/op
+BenchmarkResolveSnapshot/pinned-8            	 4079355	       363.0 ns/op	      96 B/op	       3 allocs/op
+BenchmarkResolveSnapshot/pinned-8            	 3657838	       321.4 ns/op	      96 B/op	       3 allocs/op
+BenchmarkResolveSnapshot/pinned-8            	 4093454	       331.7 ns/op	      96 B/op	       3 allocs/op
 PASS
-ok  	github.com/arrowhr/ruleengine/store	10.631s
+ok  	github.com/arrowhr/ruleengine/store	29.604s
 PASS
-ok  	github.com/arrowhr/ruleengine/store/filestore	0.459s
+ok  	github.com/arrowhr/ruleengine/store/filestore	0.163s
 PASS
-ok  	github.com/arrowhr/ruleengine/store/servicestore	0.558s
+ok  	github.com/arrowhr/ruleengine/store/servicestore	0.272s
 PASS
-ok  	github.com/arrowhr/ruleengine/telemetry	0.297s
+ok  	github.com/arrowhr/ruleengine/telemetry	0.213s

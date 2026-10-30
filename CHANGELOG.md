@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Hardening fixes
 
+- Pinned repository development and CI to Go 1.27.3, and the Go 1.26 CI leg to
+  1.26.10, the first releases fixing GO-2026-6809 (`crypto/x509`
+  `Certificate.Verify`).
+- `VersionResolver.Resolve` and `ResolveSnapshot` return the snapshot's own
+  rules rather than a deep copy per decision; they must be treated as
+  read-only. A custom `engine.Engine` must likewise not modify the logic it is
+  given. `Snapshot.Candidates`, `Version` and `Versions` still return copies.
 - `audit.Async.Log` after `Close` is now a counted drop rather than a panic.
   `Close` bounds each sink write by the remaining drain deadline and returns an
   error if any record was lost while draining.
