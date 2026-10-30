@@ -5,7 +5,7 @@ import "strings"
 // ResolveAttribute finds the nearest path node declaring attr. Supported
 // attributes are country, employmentCountry, currency, locale, and timezone.
 func (s *Snapshot) ResolveAttribute(tenant, nodeID, attr string) (value, sourceNodeID string, ok bool) {
-	path, err := s.Path(tenant, nodeID)
+	path, err := s.path(tenant, nodeID)
 	if err != nil {
 		return "", "", false
 	}

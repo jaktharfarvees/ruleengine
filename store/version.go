@@ -52,7 +52,8 @@ func NewVersionResolver(cache *Cache, manifests manifest.Reader) *VersionResolve
 // Resolve applies manifest, explicit-pin, and effective-at precedence. It
 // returns every node-anchored variant selected by that constraint; anchor
 // resolution must see the whole slice so variants at different nodes or with
-// different filters remain distinguishable.
+// different filters remain distinguishable. As with ResolveSnapshot, the rules
+// returned are shared with the snapshot and must not be modified.
 func (r *VersionResolver) Resolve(request VersionRequest) ([]*rule.RuleDefinition, error) {
 	if r == nil || r.cache == nil {
 		return nil, ErrCacheUnavailable
@@ -63,6 +64,11 @@ func (r *VersionResolver) Resolve(request VersionRequest) ([]*rule.RuleDefinitio
 // ResolveSnapshot applies version selection to the exact immutable snapshot
 // owned by the current evaluation. It is the hot-path API; Resolve remains for
 // callers that deliberately want the cache's latest published view.
+//
+// The rules returned are the snapshot's own, not copies, so a decision does not
+// pay for a deep copy of every candidate. They are shared with every concurrent
+// reader of the snapshot and must not be modified. Snapshot.Candidates and
+// Snapshot.Version return copies for callers that need to.
 func (r *VersionResolver) ResolveSnapshot(snapshot *Snapshot, request VersionRequest) ([]*rule.RuleDefinition, error) {
 	if r == nil || snapshot == nil {
 		return nil, ErrCacheUnavailable
@@ -94,7 +100,7 @@ func (r *VersionResolver) ResolveSnapshot(snapshot *Snapshot, request VersionReq
 		// manifest, because an unapproved rule must not be able to decide
 		// someone's pay; that is a pin failure like any other.
 		evaluable := make([]*rule.RuleDefinition, 0, 2)
-		for _, definition := range snapshot.Version(request.Tenant, request.RuleKey, pin) {
+		for _, definition := range snapshot.version(request.Tenant, request.RuleKey, pin) {
 			if definition.Status.Evaluable() {
 				evaluable = append(evaluable, definition)
 			}
